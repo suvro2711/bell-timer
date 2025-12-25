@@ -50,3 +50,26 @@ export function useCreateTimerSession() {
     },
   });
 }
+
+// DELETE /api/sessions/:id
+export function useDeleteTimerSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`${API_BASE}/sessions/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || "Failed to delete session");
+      }
+
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`${API_BASE}/sessions`] });
+    },
+  });
+}

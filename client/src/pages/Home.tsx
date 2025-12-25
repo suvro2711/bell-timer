@@ -3,10 +3,16 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
-import { Play, RotateCcw, History, Clock, Bell } from "lucide-react";
+import { Play, RotateCcw, History, Clock, Bell, MoreVertical, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-import { useCreateTimerSession, useTimerSessions } from "@/hooks/use-timer-sessions";
+import { useCreateTimerSession, useTimerSessions, useDeleteTimerSession } from "@/hooks/use-timer-sessions";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { CircularTimer } from "@/components/CircularTimer";
 import { SoundPlayer } from "@/components/SoundPlayer";
 import { Toaster } from "@/components/ui/toaster";
@@ -32,7 +38,26 @@ export default function Home() {
 
   const { toast } = useToast();
   const createSession = useCreateTimerSession();
+  const deleteSession = useDeleteTimerSession();
   const { data: sessions, isLoading: isLoadingHistory } = useTimerSessions();
+
+  const handleDeleteSession = (id: number) => {
+    deleteSession.mutate(id, {
+      onSuccess: () => {
+        toast({
+          title: "Session Deleted",
+          description: "The session has been removed from history.",
+        });
+      },
+      onError: () => {
+        toast({
+          title: "Error",
+          description: "Failed to delete session. Please try again.",
+          variant: "destructive",
+        });
+      },
+    });
+  };
 
   // Initialize sheets when app loads
   useEffect(() => {
@@ -339,7 +364,7 @@ export default function Home() {
                     className="p-4 rounded-xl hover:bg-secondary/50 transition-colors border border-transparent hover:border-border/50 group"
                   >
                     <div className="flex justify-between items-start">
-                      <div>
+                      <div className="flex-1">
                         <div className="font-medium text-foreground flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-primary/40 group-hover:bg-primary transition-colors"></span>
                           {session.frequency} reps × {session.intervalSeconds}s
@@ -348,8 +373,26 @@ export default function Home() {
                            Total: {formatTime(session.frequency * session.intervalSeconds)}
                         </div>
                       </div>
-                      <div className="text-xs font-medium text-muted-foreground bg-secondary px-2 py-1 rounded-md">
-                        {session.createdAt && format(new Date(session.createdAt), 'MMM d, h:mm a')}
+                      <div className="flex items-center gap-2">
+                        <div className="text-xs font-medium text-muted-foreground bg-secondary px-2 py-1 rounded-md">
+                          {session.createdAt && format(new Date(session.createdAt), 'MMM d, h:mm a')}
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="p-1 hover:bg-secondary rounded-md transition-colors">
+                              <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive cursor-pointer"
+                              onClick={() => handleDeleteSession(session.id)}
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                   </motion.div>

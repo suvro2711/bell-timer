@@ -49,5 +49,24 @@ export async function registerRoutes(
     res.json(sessions);
   });
 
+  app.delete("/api/sessions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid session ID" });
+      }
+
+      const deleted = await storage.deleteSession(id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting session:', error);
+      res.status(500).json({ error: "Failed to delete session" });
+    }
+  });
+
   return httpServer;
 }

@@ -223,6 +223,71 @@ export class GoogleSheetsService {
       return [];
     }
   }
+
+  async deleteSessionByTimestamp(timestamp: string): Promise<boolean> {
+    if (!await this.isConfigured()) {
+      return false;
+    }
+
+    try {
+      const sheetName = this.getSheetName();
+      
+      // Get all rows to find the matching timestamp
+      const response = await this.sheets!.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: `${sheetName}!A2:E`,
+      });
+
+      const rows = response.data.values || [];
+      
+      // Find the row index (1-based, +1 for header, +1 for 0-based to 1-based)
+      const rowIndex = rows.findIndex(row => row[0] === timestamp);
+      
+      if (rowIndex === -1) {
+        console.log(`Session with timestamp ${timestamp} not found in sheet`);
+        return false;
+      }
+      
+      // Calculate actual row number in sheet (header is row 1, data starts at row 2)
+      const sheetRowNumber = rowIndex + 2;
+      
+      // Get the sheet ID
+      const sheetMetadata = await this.sheets!.spreadsheets.get({
+        spreadsheetId: this.spreadsheetId,
+      });
+      
+      const sheet = sheetMetadata.data.sheets?.find(s => s.properties?.title === sheetName);
+      if (!sheet || !sheet.properties?.sheetId) {
+        console.error('Could not find sheet ID');
+        return false;
+      }
+      
+      // Delete the row
+      await this.sheets!.spreadsheets.batchUpdate({
+        spreadsheetId: this.spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              deleteDimension: {
+                range: {
+                  sheetId: sheet.properties.sheetId,
+                  dimension: 'ROWS',
+                  startIndex: sheetRowNumber - 1, // 0-based for API
+                  endIndex: sheetRowNumber, // Exclusive end
+                },
+              },
+            },
+          ],
+        },
+      });
+
+      console.log(`Deleted row ${sheetRowNumber} from ${sheetName}`);
+      return true;
+    } catch (error) {
+      console.error('Error deleting from Google Sheets:', error);
+      return false;
+    }
+  }
 }
 
 // Singleton instance

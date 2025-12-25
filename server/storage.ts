@@ -13,6 +13,7 @@ export interface IStorage {
     intervalSeconds: number;
     createdAt: Date;
   }>>;
+  deleteSession(id: number): Promise<boolean>;
 }
 
 // In-memory storage for session history (last 50 sessions)
@@ -84,6 +85,28 @@ export class SheetsStorage implements IStorage {
 
   async getSessions() {
     return sessionHistory;
+  }
+
+  async deleteSession(id: number): Promise<boolean> {
+    const index = sessionHistory.findIndex(s => s.id === id);
+    if (index === -1) {
+      return false;
+    }
+    
+    const session = sessionHistory[index];
+    
+    // Delete from Google Sheets using timestamp
+    try {
+      await googleSheetsService.deleteSessionByTimestamp(session.createdAt.toISOString());
+      console.log(`Deleted session from Google Sheets: ${session.createdAt.toISOString()}`);
+    } catch (error) {
+      console.error('Failed to delete from Google Sheets (still deleting from memory):', error);
+    }
+    
+    // Delete from memory
+    sessionHistory.splice(index, 1);
+    console.log(`Deleted session with id ${id} from memory`);
+    return true;
   }
 }
 

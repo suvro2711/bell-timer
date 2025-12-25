@@ -13,5 +13,8 @@ export const api = {
     list: {
       path: "/api/sessions",
     },
+    delete: {
+      path: "/api/sessions/:id",
+    },
   },
 };
