@@ -16,6 +16,8 @@ export class GoogleSheetsService {
   private sheets;
   private auth;
   private spreadsheetId: string;
+  private initializationAttempted = false;
+  private initializationSuccessful = false;
 
   constructor() {
     // You'll need to set these environment variables
@@ -44,6 +46,29 @@ export class GoogleSheetsService {
     return `Sessions_${year}`;
   }
 
+  private async retryOperation<T>(
+    operation: () => Promise<T>,
+    maxRetries = 3,
+    delayMs = 1000
+  ): Promise<T> {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error as Error;
+        console.warn(`Attempt ${attempt}/${maxRetries} failed:`, error);
+        
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, delayMs * attempt));
+        }
+      }
+    }
+    
+    throw lastError;
+  }
+
   async ensureYearSheetExists(): Promise<void> {
     if (!await this.isConfigured()) {
       return;
@@ -51,7 +76,7 @@ export class GoogleSheetsService {
 
     const sheetName = this.getSheetName();
 
-    try {
+    await this.retryOperation(async () => {
       // Get all sheets in the spreadsheet
       const response = await this.sheets!.spreadsheets.get({
         spreadsheetId: this.spreadsheetId,
@@ -91,10 +116,7 @@ export class GoogleSheetsService {
 
         console.log(`Initialized headers for ${sheetName}`);
       }
-    } catch (error) {
-      console.error('Error ensuring year sheet exists:', error);
-      throw error;
-    }
+    });
   }
 
   async appendSession(session: GoogleSheetsSession): Promise<void> {
@@ -103,7 +125,7 @@ export class GoogleSheetsService {
       return;
     }
 
-    try {
+    await this.retryOperation(async () => {
       // Ensure the current year's sheet exists
       await this.ensureYearSheetExists();
 
@@ -128,22 +150,77 @@ export class GoogleSheetsService {
       });
 
       console.log(`Session successfully logged to Google Sheets (${sheetName})`);
-    } catch (error) {
-      console.error('Error writing to Google Sheets:', error);
-      throw new Error('Failed to write to Google Sheets');
-    }
+    });
   }
 
   async initializeSheet(): Promise<void> {
     if (!await this.isConfigured()) {
+      console.warn('Google Sheets not configured - skipping initialization');
       return;
     }
 
+    // Prevent multiple simultaneous initialization attempts
+    if (this.initializationAttempted) {
+      console.log('Sheet initialization already attempted');
+      return;
+    }
+
+    this.initializationAttempted = true;
+
     try {
-      // Ensure current year's sheet exists with headers
-      await this.ensureYearSheetExists();
+      await this.retryOperation(async () => {
+        await this.ensureYearSheetExists();
+      }, 5, 2000); // 5 retries with 2 second base delay
+      
+      this.initializationSuccessful = true;
+      console.log('Google Sheets initialized successfully');
     } catch (error) {
-      console.error('Error initializing sheet:', error);
+      console.error('Failed to initialize Google Sheets after retries:', error);
+      // Don't throw - allow app to continue without sheets
+    }
+  }
+
+  isInitialized(): boolean {
+    return this.initializationSuccessful;
+  }
+
+  async getRecentSessions(limit: number = 50): Promise<GoogleSheetsSession[]> {
+    if (!await this.isConfigured()) {
+      return [];
+    }
+
+    try {
+      const sheetName = this.getSheetName();
+      
+      // Read all data from the sheet (skip header row)
+      const response = await this.sheets!.spreadsheets.values.get({
+        spreadsheetId: this.spreadsheetId,
+        range: `${sheetName}!A2:E`,
+      });
+
+      const rows = response.data.values || [];
+      
+      // Convert rows to session objects and take the most recent ones
+      const sessions: GoogleSheetsSession[] = rows
+        .map(row => {
+          if (row.length < 4) return null;
+          
+          return {
+            timestamp: row[0],
+            frequency: parseInt(row[1]),
+            intervalSeconds: parseInt(row[2]),
+            totalDuration: parseInt(row[3]),
+          };
+        })
+        .filter((session): session is GoogleSheetsSession => session !== null)
+        .reverse() // Most recent first
+        .slice(0, limit);
+
+      console.log(`Loaded ${sessions.length} sessions from Google Sheets`);
+      return sessions;
+    } catch (error) {
+      console.error('Error reading from Google Sheets:', error);
+      return [];
     }
   }
 }

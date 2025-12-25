@@ -27,6 +27,31 @@ const sessionHistory: Array<{
 let nextId = 1;
 
 export class SheetsStorage implements IStorage {
+  async syncFromGoogleSheets(): Promise<void> {
+    try {
+      const sheetSessions = await googleSheetsService.getRecentSessions(50);
+      
+      // Clear current in-memory storage
+      sessionHistory.length = 0;
+      
+      // Populate from Google Sheets
+      let id = 1;
+      sheetSessions.forEach(sheetSession => {
+        sessionHistory.push({
+          id: id++,
+          frequency: sheetSession.frequency,
+          intervalSeconds: sheetSession.intervalSeconds,
+          createdAt: new Date(sheetSession.timestamp),
+        });
+      });
+      
+      nextId = id;
+      console.log(`Synced ${sessionHistory.length} sessions from Google Sheets to memory`);
+    } catch (error) {
+      console.error('Failed to sync from Google Sheets:', error);
+    }
+  }
+
   async createSession(session: { frequency: number; intervalSeconds: number }) {
     const newSession = {
       id: nextId++,
@@ -41,13 +66,18 @@ export class SheetsStorage implements IStorage {
       sessionHistory.pop();
     }
     
-    // Save to Google Sheets
-    await googleSheetsService.appendSession({
-      frequency: session.frequency,
-      intervalSeconds: session.intervalSeconds,
-      timestamp: newSession.createdAt.toISOString(),
-      totalDuration: session.frequency * session.intervalSeconds,
-    });
+    // Try to save to Google Sheets with retry logic
+    try {
+      await googleSheetsService.appendSession({
+        frequency: session.frequency,
+        intervalSeconds: session.intervalSeconds,
+        timestamp: newSession.createdAt.toISOString(),
+        totalDuration: session.frequency * session.intervalSeconds,
+      });
+    } catch (error) {
+      // Log error but don't fail the request - data is still in memory
+      console.error('Failed to log to Google Sheets (data saved in memory):', error);
+    }
     
     return newSession;
   }

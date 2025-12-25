@@ -34,6 +34,41 @@ export default function Home() {
   const createSession = useCreateTimerSession();
   const { data: sessions, isLoading: isLoadingHistory } = useTimerSessions();
 
+  // Initialize sheets when app loads
+  useEffect(() => {
+    const initializeSheets = async () => {
+      try {
+        const response = await fetch('/api/health');
+        
+        if (!response.ok) {
+          console.warn('Health check returned non-OK status:', response.status);
+          return;
+        }
+        
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          console.warn('Health check returned non-JSON response');
+          return;
+        }
+        
+        const data = await response.json();
+        console.log('Sheets initialization check:', data);
+        
+        if (!data.sheetsInitialized) {
+          toast({
+            title: "Warning",
+            description: "Google Sheets initialization failed. Check server logs.",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error('Failed to check sheets initialization:', error);
+      }
+    };
+    
+    initializeSheets();
+  }, [toast]);
+
   const { register, handleSubmit, formState: { errors, isValid } } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {

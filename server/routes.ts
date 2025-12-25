@@ -4,13 +4,24 @@ import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { googleSheetsService } from "./google-sheets";
+import { registerHealthRoutes } from "./routes-health";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Initialize Google Sheets on startup
-  googleSheetsService.initializeSheet().catch(console.error);
+  // Register health check route
+  registerHealthRoutes(app);
+
+  // Initialize Google Sheets on startup - create year sheet if needed
+  (async () => {
+    try {
+      await googleSheetsService.initializeSheet();
+      console.log('Google Sheets initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize Google Sheets:', error);
+    }
+  })();
 
   app.post(api.sessions.create.path, async (req, res) => {
     try {
