@@ -1,48 +1,17 @@
-import { z } from 'zod';
-import { insertTimerSessionSchema, timerSessions } from './schema';
+import { z } from "zod";
 
-export const errorSchemas = {
-  validation: z.object({
-    message: z.string(),
-    field: z.string().optional(),
-  }),
-  notFound: z.object({
-    message: z.string(),
-  }),
-  internal: z.object({
-    message: z.string(),
-  }),
-};
-
+// API route definitions
 export const api = {
   sessions: {
     create: {
-      method: 'POST' as const,
-      path: '/api/sessions',
-      input: insertTimerSessionSchema,
-      responses: {
-        201: z.custom<typeof timerSessions.$inferSelect>(),
-        400: errorSchemas.validation,
-      },
+      path: "/api/sessions",
+      input: z.object({
+        frequency: z.number().min(1),
+        intervalSeconds: z.number().min(1),
+      }),
     },
     list: {
-      method: 'GET' as const,
-      path: '/api/sessions',
-      responses: {
-        200: z.array(z.custom<typeof timerSessions.$inferSelect>()),
-      },
-    }
-  }
+      path: "/api/sessions",
+    },
+  },
 };
-
-export function buildUrl(path: string, params?: Record<string, string | number>): string {
-  let url = path;
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      if (url.includes(`:${key}`)) {
-        url = url.replace(`:${key}`, String(value));
-      }
-    });
-  }
-  return url;
-}

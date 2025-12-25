@@ -81,6 +81,7 @@ export default function Home() {
   }, [isRunning, timeLeft, activeConfig]);
 
   const onSubmit = (data: FormData) => {
+    console.log('onSubmit called with data:', data);
     const duration = data.frequency * data.intervalSeconds;
     setTotalDuration(duration);
     setTimeLeft(duration);
@@ -89,17 +90,20 @@ export default function Home() {
     setCurrentRep(0);
 
     // Save session to DB
+    console.log('Calling createSession.mutate...');
     createSession.mutate(data, {
       onSuccess: () => {
+        console.log('Session created successfully!');
         toast({
           title: "Session Started",
           description: `Timer set for ${data.frequency} intervals of ${data.intervalSeconds}s.`,
         });
       },
-      onError: () => {
+      onError: (error) => {
+        console.error('Session creation failed:', error);
         toast({
           title: "Error",
-          description: "Failed to save session history.",
+          description: error.message || "Failed to save session history.",
           variant: "destructive",
         });
       }
@@ -206,7 +210,7 @@ export default function Home() {
                     <button
                       type="submit"
                       disabled={!isValid || createSession.isPending}
-                      className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-bold text-lg shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-3"
+                      className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-bold text-lg shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {createSession.isPending ? (
                         "Starting..."
