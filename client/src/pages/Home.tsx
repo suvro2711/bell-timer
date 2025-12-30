@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { CircularTimer } from "@/components/CircularTimer";
 import { SoundPlayer } from "@/components/SoundPlayer";
+import { PinLock } from "@/components/PinLock";
 import { Toaster } from "@/components/ui/toaster";
 import { useToast } from "@/hooks/use-toast";
 
@@ -27,6 +28,7 @@ const formSchema = z.object({
 type FormData = z.infer<typeof formSchema>;
 
 export default function Home() {
+  const [isUnlocked, setIsUnlocked] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
   const [totalDuration, setTotalDuration] = useState(0);
@@ -189,6 +191,10 @@ export default function Home() {
     const s = Math.floor(seconds % 60);
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
+
+  if (!isUnlocked) {
+    return <PinLock onUnlock={() => setIsUnlocked(true)} />;
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col font-sans">

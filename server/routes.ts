@@ -49,6 +49,23 @@ export async function registerRoutes(
     res.json(sessions);
   });
 
+  app.post("/api/verify-pin", async (req, res) => {
+    try {
+      const { pin } = req.body;
+      const correctPin = process.env.APP_PIN;
+
+      if (!correctPin) {
+        return res.status(500).json({ valid: false, error: "PIN not configured" });
+      }
+
+      const valid = pin === correctPin;
+      res.json({ valid });
+    } catch (err) {
+      console.error("Error verifying PIN:", err);
+      res.status(500).json({ valid: false, error: "Verification failed" });
+    }
+  });
+
   app.delete("/api/sessions/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
