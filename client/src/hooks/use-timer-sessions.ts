@@ -4,14 +4,14 @@ const API_BASE = "/api";
 
 interface TimerSession {
   id: number;
-  frequency: number;
-  intervalSeconds: number;
+  intervalFrequency: number;
+  timer: number;
   createdAt: Date;
 }
 
 interface CreateSessionInput {
-  frequency: number;
-  intervalSeconds: number;
+  intervalFrequency: number;
+  timer: number;
 }
 
 // GET /api/sessions

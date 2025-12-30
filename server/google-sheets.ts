@@ -3,8 +3,8 @@ import { z } from 'zod';
 
 // Schema for session data to be sent to Google Sheets
 export const googleSheetsSessionSchema = z.object({
-  frequency: z.number(),
-  intervalSeconds: z.number(),
+  intervalFrequency: z.number(),
+  timer: z.number(),
   timestamp: z.string(),
   totalDuration: z.number(),
 });
@@ -110,7 +110,7 @@ export class GoogleSheetsService {
           range: `${sheetName}!A1:E1`,
           valueInputOption: 'USER_ENTERED',
           requestBody: {
-            values: [['Timestamp', 'Frequency', 'Interval (s)', 'Total Duration (s)', 'Duration (MM:SS)']],
+            values: [['Timestamp', 'Interval Frequency (min)', 'Timer (min)', 'Total Duration (s)', 'Duration (MM:SS)']],
           },
         });
 
@@ -133,8 +133,8 @@ export class GoogleSheetsService {
       const values = [
         [
           session.timestamp,
-          session.frequency,
-          session.intervalSeconds,
+          session.intervalFrequency,
+          session.timer,
           session.totalDuration,
           `${Math.floor(session.totalDuration / 60)}:${(session.totalDuration % 60).toString().padStart(2, '0')}`,
         ],
@@ -207,8 +207,8 @@ export class GoogleSheetsService {
           
           return {
             timestamp: row[0],
-            frequency: parseInt(row[1]),
-            intervalSeconds: parseInt(row[2]),
+            intervalFrequency: parseInt(row[1]),
+            timer: parseInt(row[2]),
             totalDuration: parseInt(row[3]),
           };
         })

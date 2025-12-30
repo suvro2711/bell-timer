@@ -6,8 +6,8 @@ export const api = {
     create: {
       path: "/api/sessions",
       input: z.object({
-        frequency: z.number().min(1),
-        intervalSeconds: z.number().min(1),
+        intervalFrequency: z.number().min(1),
+        timer: z.number().min(1),
       }),
     },
     list: {

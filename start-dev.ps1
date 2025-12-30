@@ -12,5 +12,5 @@ Get-Content .env | ForEach-Object {
 # Set NODE_ENV
 $env:NODE_ENV = "development"
 
-# Start the server
+# Start the server (this includes Vite HMR in dev mode)
 npx tsx server/index.ts

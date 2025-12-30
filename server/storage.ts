@@ -1,16 +1,16 @@
 import { googleSheetsService } from "./google-sheets";
 
 export interface IStorage {
-  createSession(session: { frequency: number; intervalSeconds: number }): Promise<{
+  createSession(session: { intervalFrequency: number; timer: number }): Promise<{
     id: number;
-    frequency: number;
-    intervalSeconds: number;
+    intervalFrequency: number;
+    timer: number;
     createdAt: Date;
   }>;
   getSessions(): Promise<Array<{
     id: number;
-    frequency: number;
-    intervalSeconds: number;
+    intervalFrequency: number;
+    timer: number;
     createdAt: Date;
   }>>;
   deleteSession(id: number): Promise<boolean>;
@@ -20,8 +20,8 @@ export interface IStorage {
 // This is temporary storage for the UI, real data is in Google Sheets
 const sessionHistory: Array<{
   id: number;
-  frequency: number;
-  intervalSeconds: number;
+  intervalFrequency: number;
+  timer: number;
   createdAt: Date;
 }> = [];
 
@@ -40,8 +40,8 @@ export class SheetsStorage implements IStorage {
       sheetSessions.forEach(sheetSession => {
         sessionHistory.push({
           id: id++,
-          frequency: sheetSession.frequency,
-          intervalSeconds: sheetSession.intervalSeconds,
+          intervalFrequency: sheetSession.intervalFrequency,
+          timer: sheetSession.timer,
           createdAt: new Date(sheetSession.timestamp),
         });
       });
@@ -53,11 +53,11 @@ export class SheetsStorage implements IStorage {
     }
   }
 
-  async createSession(session: { frequency: number; intervalSeconds: number }) {
+  async createSession(session: { intervalFrequency: number; timer: number }) {
     const newSession = {
       id: nextId++,
-      frequency: session.frequency,
-      intervalSeconds: session.intervalSeconds,
+      intervalFrequency: session.intervalFrequency,
+      timer: session.timer,
       createdAt: new Date(),
     };
     
@@ -70,10 +70,10 @@ export class SheetsStorage implements IStorage {
     // Try to save to Google Sheets with retry logic
     try {
       await googleSheetsService.appendSession({
-        frequency: session.frequency,
-        intervalSeconds: session.intervalSeconds,
+        intervalFrequency: session.intervalFrequency,
+        timer: session.timer,
         timestamp: newSession.createdAt.toISOString(),
-        totalDuration: session.frequency * session.intervalSeconds,
+        totalDuration: session.timer * 60, // Convert minutes to seconds for total duration
       });
     } catch (error) {
       // Log error but don't fail the request - data is still in memory

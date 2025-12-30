@@ -20,8 +20,8 @@ import { useToast } from "@/hooks/use-toast";
 
 // Validation schema for the form
 const formSchema = z.object({
-  frequency: z.coerce.number().min(1, "Must be at least 1 repetition"),
-  intervalSeconds: z.coerce.number().min(1, "Interval must be at least 1 second"),
+  intervalFrequency: z.coerce.number().min(1, "Must be at least 1 minute"),
+  timer: z.coerce.number().min(1, "Timer must be at least 1 minute"),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -97,8 +97,8 @@ export default function Home() {
   const { register, handleSubmit, formState: { errors, isValid } } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      frequency: 5,
-      intervalSeconds: 10,
+      intervalFrequency: 5,
+      timer: 30,
     },
   });
 
@@ -113,14 +113,18 @@ export default function Home() {
           
           if (activeConfig) {
              // Check if we crossed an interval boundary
-             const elapsed = activeConfig.frequency * activeConfig.intervalSeconds - prev;
-             const nextElapsed = activeConfig.frequency * activeConfig.intervalSeconds - newValue;
+             // timer is total time in minutes, intervalFrequency is bell interval in minutes
+             const totalSeconds = activeConfig.timer * 60;
+             const intervalSeconds = activeConfig.intervalFrequency * 60;
+             const elapsed = totalSeconds - prev;
+             const nextElapsed = totalSeconds - newValue;
              
-             // Simple way to track reps: calculate completed intervals
-             const completedReps = Math.floor(nextElapsed / activeConfig.intervalSeconds);
-             const prevCompletedReps = Math.floor(elapsed / activeConfig.intervalSeconds);
+             // Calculate how many intervals completed
+             const completedReps = Math.floor(nextElapsed / intervalSeconds);
+             const prevCompletedReps = Math.floor(elapsed / intervalSeconds);
+             const totalReps = Math.floor(totalSeconds / intervalSeconds);
 
-             if (completedReps > prevCompletedReps && completedReps <= activeConfig.frequency) {
+             if (completedReps > prevCompletedReps && completedReps <= totalReps) {
                setPlayTrigger(n => n + 1);
                setCurrentRep(completedReps);
              }
@@ -129,7 +133,7 @@ export default function Home() {
           if (newValue <= 0) {
             setIsRunning(false);
             setPlayTrigger(n => n + 1); // Final bell
-            setCurrentRep(activeConfig?.frequency || 0);
+            setCurrentRep(activeConfig ? Math.floor((activeConfig.timer * 60) / (activeConfig.intervalFrequency * 60)) : 0);
             return 0;
           }
           return newValue;
@@ -142,7 +146,7 @@ export default function Home() {
 
   const onSubmit = (data: FormData) => {
     console.log('onSubmit called with data:', data);
-    const duration = data.frequency * data.intervalSeconds;
+    const duration = data.timer * 60; // Convert minutes to seconds
     setTotalDuration(duration);
     setTimeLeft(duration);
     setActiveConfig(data);
@@ -156,7 +160,7 @@ export default function Home() {
         console.log('Session created successfully!');
         toast({
           title: "Session Started",
-          description: `Timer set for ${data.frequency} intervals of ${data.intervalSeconds}s.`,
+          description: `Timer set for ${data.timer} minutes with ${data.intervalFrequency} minute intervals.`,
         });
       },
       onError: (error) => {
@@ -226,47 +230,35 @@ export default function Home() {
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                   <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="text-sm font-semibold text-foreground/80">Frequency</label>
+                      <label className="text-sm font-semibold text-foreground/80">Interval Frequency</label>
                       <div className="relative">
                         <input
                           type="number"
-                          {...register("frequency")}
+                          {...register("intervalFrequency")}
                           className="w-full px-4 py-3 rounded-xl bg-secondary/50 border-2 border-transparent focus:border-primary focus:bg-background transition-all outline-none text-lg font-mono font-medium"
                           placeholder="5"
                         />
-                        <span className="absolute right-4 top-3.5 text-xs text-muted-foreground font-semibold uppercase tracking-wider">Reps</span>
+                        <span className="absolute right-4 top-3.5 text-xs text-muted-foreground font-semibold uppercase tracking-wider">Min</span>
                       </div>
-                      {errors.frequency && <p className="text-xs text-destructive mt-1">{errors.frequency.message}</p>}
+                      {errors.intervalFrequency && <p className="text-xs text-destructive mt-1">{errors.intervalFrequency.message}</p>}
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-sm font-semibold text-foreground/80">Interval</label>
+                      <label className="text-sm font-semibold text-foreground/80">Timer</label>
                       <div className="relative">
                         <input
                           type="number"
-                          {...register("intervalSeconds")}
+                          {...register("timer")}
                           className="w-full px-4 py-3 rounded-xl bg-secondary/50 border-2 border-transparent focus:border-primary focus:bg-background transition-all outline-none text-lg font-mono font-medium"
                           placeholder="30"
                         />
-                        <span className="absolute right-4 top-3.5 text-xs text-muted-foreground font-semibold uppercase tracking-wider">Sec</span>
+                        <span className="absolute right-4 top-3.5 text-xs text-muted-foreground font-semibold uppercase tracking-wider">Min</span>
                       </div>
-                      {errors.intervalSeconds && <p className="text-xs text-destructive mt-1">{errors.intervalSeconds.message}</p>}
+                      {errors.timer && <p className="text-xs text-destructive mt-1">{errors.timer.message}</p>}
                     </div>
                   </div>
 
                   <div className="pt-4">
-                    <div className="flex justify-between items-center mb-6 px-4 py-3 bg-secondary/30 rounded-lg">
-                      <span className="text-sm font-medium text-muted-foreground">Total Duration</span>
-                      <span className="text-xl font-mono font-bold text-primary">
-                        {/* Calculate approx duration for preview */}
-                        {isValid ? 
-                          // We don't have direct access to values without watch(), but simple calculation works if form is simple
-                          // Let's use a simple heuristic or just show '--:--' until active
-                          "Calculate on Start" 
-                          : "--:--"}
-                      </span>
-                    </div>
-
                     <button
                       type="submit"
                       disabled={!isValid || createSession.isPending}
@@ -312,11 +304,11 @@ export default function Home() {
 
                 <div className="grid grid-cols-2 gap-8 w-full max-w-xs mb-8">
                   <div className="text-center p-4 rounded-2xl bg-secondary/30 backdrop-blur-sm border border-border/50">
-                    <div className="text-2xl font-bold font-mono">{currentRep} <span className="text-sm font-sans text-muted-foreground font-normal">/ {activeConfig.frequency}</span></div>
+                    <div className="text-2xl font-bold font-mono">{currentRep} <span className="text-sm font-sans text-muted-foreground font-normal">/ {Math.floor((activeConfig.timer * 60) / (activeConfig.intervalFrequency * 60))}</span></div>
                     <div className="text-xs uppercase tracking-wider font-bold text-muted-foreground mt-1">Repetition</div>
                   </div>
                   <div className="text-center p-4 rounded-2xl bg-secondary/30 backdrop-blur-sm border border-border/50">
-                    <div className="text-2xl font-bold font-mono">{activeConfig.intervalSeconds}s</div>
+                    <div className="text-2xl font-bold font-mono">{activeConfig.intervalFrequency} min</div>
                     <div className="text-xs uppercase tracking-wider font-bold text-muted-foreground mt-1">Interval</div>
                   </div>
                 </div>
@@ -367,10 +359,7 @@ export default function Home() {
                       <div className="flex-1">
                         <div className="font-medium text-foreground flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-primary/40 group-hover:bg-primary transition-colors"></span>
-                          {session.frequency} reps × {session.intervalSeconds}s
-                        </div>
-                        <div className="text-sm text-muted-foreground mt-0.5">
-                           Total: {formatTime(session.frequency * session.intervalSeconds)}
+                          {session.timer} min timer × {session.intervalFrequency} min intervals
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
