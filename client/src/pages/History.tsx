@@ -1,16 +1,9 @@
 import { useTimerSessions, useDeleteTimerSession } from "@/hooks/use-timer-sessions";
-import { format } from "date-fns";
-import { Clock, Trash2, MoreVertical, ArrowLeft, Calendar } from "lucide-react";
+import { Clock, ArrowLeft, Calendar } from "lucide-react";
 import { Link } from "wouter";
-import { motion } from "framer-motion";
 import { useState, useMemo } from "react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { SessionHistoryItem } from "@/components/SessionHistoryItem";
 
 export default function HistoryPage() {
   const { data: sessions, isLoading } = useTimerSessions();
@@ -180,42 +173,13 @@ export default function HistoryPage() {
               </div>
               <div className="space-y-3">
                 {filteredSessions.map((session, i) => (
-                <motion.div
-                  key={session.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.03 }}
-                  className="p-4 rounded-xl hover:bg-secondary/50 transition-colors border border-border/50 group"
-                >
-                  <div className="flex justify-between items-center">
-                    <div className="flex-1">
-                      <div className="font-medium text-foreground flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-primary/40 group-hover:bg-primary transition-colors"></span>
-                        {session.timer} min timer × {session.intervalFrequency} min intervals
-                      </div>
-                      <div className="text-sm text-muted-foreground mt-1">
-                        {session.createdAt && format(new Date(session.createdAt), "MMMM d, yyyy 'at' h:mm a")}
-                      </div>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="p-1 hover:bg-secondary rounded-md transition-colors">
-                          <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive cursor-pointer"
-                          onClick={() => handleDeleteSession(session.id)}
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </motion.div>
-              ))}
+                  <SessionHistoryItem
+                    key={session.id}
+                    session={session}
+                    index={i}
+                    onDelete={handleDeleteSession}
+                  />
+                ))}
             </div>
             </div>
           )}
