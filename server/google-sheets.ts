@@ -190,34 +190,64 @@ export class GoogleSheetsService {
     }
 
     try {
-      const sheetName = this.getSheetName();
-      
-      // Read all data from the sheet (skip header row)
-      const response = await this.sheets!.spreadsheets.values.get({
+      // Get all sheets to find year-based sheets
+      const spreadsheet = await this.sheets!.spreadsheets.get({
         spreadsheetId: this.spreadsheetId,
-        range: `${sheetName}!A2:E`,
       });
 
-      const rows = response.data.values || [];
-      
-      // Convert rows to session objects and take the most recent ones
-      const sessions: GoogleSheetsSession[] = rows
-        .map(row => {
-          if (row.length < 4) return null;
-          
-          return {
-            timestamp: row[0],
-            intervalFrequency: parseInt(row[1]),
-            timer: parseInt(row[2]),
-            totalDuration: parseInt(row[3]),
-          };
+      const sheets = spreadsheet.data.sheets || [];
+      const yearSheets = sheets
+        .map(sheet => sheet.properties?.title)
+        .filter((title): title is string => {
+          return !!title && title.startsWith('Sessions_');
         })
-        .filter((session): session is GoogleSheetsSession => session !== null)
-        .reverse() // Most recent first
-        .slice(0, limit);
+        .sort((a, b) => {
+          const yearA = parseInt(a.split('_')[1]);
+          const yearB = parseInt(b.split('_')[1]);
+          return yearB - yearA; // Most recent year first
+        });
 
-      console.log(`Loaded ${sessions.length} sessions from Google Sheets`);
-      return sessions;
+      console.log(`Found ${yearSheets.length} year sheets:`, yearSheets);
+
+      let allSessions: GoogleSheetsSession[] = [];
+
+      // Read from each year sheet
+      for (const sheetName of yearSheets) {
+        try {
+          const response = await this.sheets!.spreadsheets.values.get({
+            spreadsheetId: this.spreadsheetId,
+            range: `${sheetName}!A2:E`,
+          });
+
+          const rows = response.data.values || [];
+          
+          const sessions = rows
+            .map(row => {
+              if (row.length < 4) return null;
+              
+              return {
+                timestamp: row[0],
+                intervalFrequency: parseInt(row[1]),
+                timer: parseInt(row[2]),
+                totalDuration: parseInt(row[3]),
+              };
+            })
+            .filter((session): session is GoogleSheetsSession => session !== null);
+
+          allSessions = allSessions.concat(sessions);
+        } catch (error) {
+          console.warn(`Error reading sheet ${sheetName}:`, error);
+        }
+      }
+
+      // Sort by timestamp (most recent first) and limit
+      allSessions.sort((a, b) => {
+        return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+      });
+
+      const limitedSessions = allSessions.slice(0, limit);
+      console.log(`Loaded ${limitedSessions.length} sessions from ${yearSheets.length} year sheets`);
+      return limitedSessions;
     } catch (error) {
       console.error('Error reading from Google Sheets:', error);
       return [];
@@ -230,7 +260,10 @@ export class GoogleSheetsService {
     }
 
     try {
-      const sheetName = this.getSheetName();
+      // Extract year from timestamp to find the correct sheet
+      const sessionDate = new Date(timestamp);
+      const year = sessionDate.getFullYear();
+      const sheetName = `Sessions_${year}`;
       
       // Get all rows to find the matching timestamp
       const response = await this.sheets!.spreadsheets.values.get({
@@ -244,7 +277,7 @@ export class GoogleSheetsService {
       const rowIndex = rows.findIndex(row => row[0] === timestamp);
       
       if (rowIndex === -1) {
-        console.log(`Session with timestamp ${timestamp} not found in sheet`);
+        console.log(`Session with timestamp ${timestamp} not found in sheet ${sheetName}`);
         return false;
       }
       

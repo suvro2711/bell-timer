@@ -16,6 +16,7 @@ import {
 import { CircularTimer } from "@/components/CircularTimer";
 import { SoundPlayer } from "@/components/SoundPlayer";
 import { PinLock } from "@/components/PinLock";
+import { HamburgerMenu } from "@/components/HamburgerMenu";
 import { Toaster } from "@/components/ui/toaster";
 import { useToast } from "@/hooks/use-toast";
 
@@ -207,10 +208,13 @@ export default function Home() {
             <div className="p-2 bg-primary rounded-lg text-primary-foreground shadow-lg shadow-primary/20">
               <Clock className="w-6 h-6" />
             </div>
-            <h1 className="text-xl font-bold tracking-tight">FocusLoop</h1>
+            <h1 className="text-xl font-bold tracking-tight">My Stuff</h1>
           </div>
-          <div className="text-sm font-medium text-muted-foreground hidden sm:block">
-            Interval Training Timer
+          <div className="flex items-center gap-4">
+            <div className="text-sm font-medium text-muted-foreground hidden sm:block">
+              Interval Training Timer
+            </div>
+            <HamburgerMenu />
           </div>
         </div>
       </header>
