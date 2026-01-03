@@ -16,6 +16,7 @@ export class GoogleSheetsService {
   private sheets;
   private auth;
   private spreadsheetId: string;
+  private statsSpreadsheetId: string;
   private initializationAttempted = false;
   private initializationSuccessful = false;
 
@@ -26,6 +27,7 @@ export class GoogleSheetsService {
       : null;
     
     this.spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID || '';
+    this.statsSpreadsheetId = process.env.MY_STATS_SHEETS_SPREADSHEET_ID || '';
 
     if (credentials) {
       this.auth = new google.auth.GoogleAuth({
@@ -319,6 +321,126 @@ export class GoogleSheetsService {
     } catch (error) {
       console.error('Error deleting from Google Sheets:', error);
       return false;
+    }
+  }
+
+  // Fetch activity data from stats spreadsheet
+  async getActivityData(): Promise<any[]> {
+    if (!this.sheets || !this.statsSpreadsheetId) {
+      console.log('Stats spreadsheet not configured');
+      return [];
+    }
+
+    try {
+      console.log('Fetching activity data from spreadsheet:', this.statsSpreadsheetId);
+      
+      // Get all sheet names
+      const sheetsResponse = await this.sheets.spreadsheets.get({
+        spreadsheetId: this.statsSpreadsheetId,
+      });
+
+      const sheets = sheetsResponse.data.sheets || [];
+      console.log('Found sheets:', sheets.map(s => s.properties?.title));
+      const allActivities: any[] = [];
+
+      // Read from all sheets
+      for (const sheet of sheets) {
+        const sheetName = sheet.properties?.title || '';
+        console.log(`Reading from sheet: ${sheetName}`);
+        
+        // Read the data from this sheet
+        const response = await this.sheets.spreadsheets.values.get({
+          spreadsheetId: this.statsSpreadsheetId,
+          range: `'${sheetName}'!A:E`, // Activity type, Duration(hours), From, To, Comment
+        });
+
+        const rows = response.data.values || [];
+        console.log(`Sheet ${sheetName} has ${rows.length} rows`);
+        
+        // Skip if no data
+        if (rows.length === 0) continue;
+
+        // Check if first row is a header
+        const hasHeader = rows[0]?.some((cell: string) => 
+          cell && typeof cell === 'string' && 
+          ['Activity', 'Duration', 'From', 'To', 'Comment'].some(h => 
+            cell.toLowerCase().includes(h.toLowerCase())
+          )
+        );
+
+        const startRow = hasHeader ? 1 : 0;
+        console.log(`Sheet ${sheetName} header: ${hasHeader}, starting from row ${startRow}`);
+
+        // Parse rows
+        for (let i = startRow; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row || row.length < 3) continue; // Need at least activity, duration, from
+
+          const [activityType, durationStr, fromStr, toStr, comment] = row;
+          
+          if (!activityType || !fromStr) continue;
+
+          allActivities.push({
+            activityType: activityType.trim(),
+            duration: durationStr?.trim() || '00:00',
+            from: fromStr.trim(),
+            to: toStr?.trim() || fromStr.trim(),
+            comment: comment?.trim() || '',
+          });
+        }
+      }
+
+      console.log(`Total activities fetched: ${allActivities.length}`);
+      return allActivities;
+    } catch (error) {
+      console.error('Error fetching activity data:', error);
+      return [];
+    }
+  }
+
+  // Generic method to fetch data from any spreadsheet/sheet
+  async getSheetData(spreadsheetId: string, sheetName: string): Promise<any[]> {
+    if (!this.sheets) {
+      throw new Error('Google Sheets not configured');
+    }
+
+    try {
+      console.log(`Fetching data from spreadsheet ${spreadsheetId}, sheet ${sheetName}`);
+      
+      const response = await this.sheets.spreadsheets.values.get({
+        spreadsheetId: spreadsheetId,
+        range: `'${sheetName}'!A:Z`, // Read all columns
+      });
+
+      const rows = response.data.values || [];
+      console.log(`Retrieved ${rows.length} rows`);
+      
+      if (rows.length === 0) {
+        return [];
+      }
+
+      // Check if first row is a header
+      const hasHeader = rows[0]?.some((cell: string) => 
+        cell && typeof cell === 'string' && cell.trim().length > 0
+      );
+
+      if (hasHeader) {
+        // Return as array of objects with headers as keys
+        const headers = rows[0];
+        return rows.slice(1).map(row => {
+          const obj: any = {};
+          headers.forEach((header, index) => {
+            obj[header] = row[index] || '';
+          });
+          return obj;
+        });
+      } else {
+        // Return raw rows
+        return rows;
+      }
+    } catch (error) {
+      console.error(`Error fetching sheet data:`, error);
+      throw error;
     }
   }
 }

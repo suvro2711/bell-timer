@@ -4,6 +4,7 @@ import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { SessionsTable } from "@/components/SessionsTable";
 import { TimerStats } from "@/components/TimerStats";
+import { ActivityStats } from "@/components/ActivityStats/ActivityStats";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function HistoryPage() {
@@ -53,6 +54,7 @@ export default function HistoryPage() {
           <TabsList className="mb-6">
             <TabsTrigger value="sessions">Sessions</TabsTrigger>
             <TabsTrigger value="stats">Timer Stats</TabsTrigger>
+            <TabsTrigger value="activities">Activity Analysis</TabsTrigger>
           </TabsList>
           
           <TabsContent value="sessions">
@@ -68,6 +70,10 @@ export default function HistoryPage() {
               sessions={sessions || []}
               isLoading={isLoading}
             />
+          </TabsContent>
+          
+          <TabsContent value="activities">
+            <ActivityStats />
           </TabsContent>
         </Tabs>
       </main>

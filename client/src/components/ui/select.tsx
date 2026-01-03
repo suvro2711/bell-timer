@@ -69,8 +69,10 @@ SelectScrollDownButton.displayName =
 
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({ className, children, position = "popper", ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> & {
+    label?: string;
+  }
+>(({ className, children, position = "popper", label, ...props }, ref) => (
   <SelectPrimitive.Portal>
     <SelectPrimitive.Content
       ref={ref}
@@ -91,6 +93,32 @@ const SelectContent = React.forwardRef<
             "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]"
         )}
       >
+        {label && (
+          <>
+            <SelectPrimitive.Item
+              value="all"
+              className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground"
+            >
+              <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                <SelectPrimitive.ItemIndicator>
+                  <Check className="h-4 w-4" />
+                </SelectPrimitive.ItemIndicator>
+              </span>
+              <SelectPrimitive.ItemText>All {label}</SelectPrimitive.ItemText>
+            </SelectPrimitive.Item>
+            <SelectPrimitive.Item
+              value="none"
+              className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground"
+            >
+              <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                <SelectPrimitive.ItemIndicator>
+                  <Check className="h-4 w-4" />
+                </SelectPrimitive.ItemIndicator>
+              </span>
+              <SelectPrimitive.ItemText>None</SelectPrimitive.ItemText>
+            </SelectPrimitive.Item>
+          </>
+        )}
         {children}
       </SelectPrimitive.Viewport>
       <SelectScrollDownButton />

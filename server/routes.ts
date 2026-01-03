@@ -85,5 +85,36 @@ export async function registerRoutes(
     }
   });
 
+  // Get activity data endpoint
+  app.get('/api/activities', async (req, res) => {
+    try {
+      console.log('GET /api/activities - fetching activity data');
+      const activities = await googleSheetsService.getActivityData();
+      console.log(`Returning ${activities.length} activities`);
+      res.json(activities);
+    } catch (error) {
+      console.error('Error fetching activities:', error);
+      res.status(500).json({ error: 'Failed to fetch activities', message: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  });
+
+  // Generic endpoint to fetch data from any spreadsheet/sheet
+  app.get('/api/sheets/:spreadsheetId/:sheetName', async (req, res) => {
+    try {
+      const { spreadsheetId, sheetName } = req.params;
+      console.log(`GET /api/sheets/${spreadsheetId}/${sheetName}`);
+      
+      const data = await googleSheetsService.getSheetData(spreadsheetId, sheetName);
+      console.log(`Returning ${data.length} rows from ${sheetName}`);
+      res.json(data);
+    } catch (error) {
+      console.error('Error fetching sheet data:', error);
+      res.status(500).json({ 
+        error: 'Failed to fetch sheet data', 
+        message: error instanceof Error ? error.message : 'Unknown error' 
+      });
+    }
+  });
+
   return httpServer;
 }

@@ -1,0 +1,91 @@
+{
+  "Sleep": {
+    "icon": "😴",
+    "activities": [
+      { "name": "Sleep", "icon": "😴" }
+    ]
+  },
+  "office_work": {
+    "icon": "💼",
+    "activities": [
+      { "name": "Deep Work", "icon": "🧠" },
+      { "name": "Shallow Work", "icon": "📝" }
+    ]
+  },
+  "blockchain": {
+    "icon": "⛓️",
+    "activities": [
+      { "name": "Blockchain Build", "icon": "⛓️" },
+      { "name": "Blockchain podcast", "icon": "🎙️" }
+    ]
+  },
+  "workout": {
+    "icon": "💪",
+    "activities": [
+      { "name": "Physical", "icon": "💪" },
+      { "name": "Run", "icon": "🏃" },
+      { "name": "Yoga", "icon": "🧘" },
+      { "name": "At the gym floor", "icon": "🏋️" },
+      { "name": "Walk", "icon": "🚶" },
+      { "name": "Travelling for physical", "icon": "🚗" },
+      { "name": "Sunlight absorption", "icon": "☀️" }
+    ]
+  },
+  "jiu_jitsu": {
+    "icon": "🥋",
+    "activities": [
+      { "name": "Bjj Mat", "icon": "🥋" },
+      { "name": "Bjj class learning", "icon": "📚" },
+      { "name": "BJJ support", "icon": "🤝" }
+    ]
+  },
+  "drums": {
+    "icon": "🥁",
+    "activities": [
+      { "name": "Drums", "icon": "🥁" }
+    ]
+  },
+  "mediate": {
+    "icon": "🧘",
+    "activities": [
+      { "name": "Meditate", "icon": "🧘" },
+      { "name": "Head Massage", "icon": "💆" }
+    ]
+  },
+  "productive": {
+    "icon": "🚀",
+    "activities": [
+      { "name": "Super Productive", "icon": "🚀" },
+      { "name": "Productive", "icon": "✅" },
+      { "name": "Personal Projects", "icon": "🛠️" },
+      { "name": "Freelance", "icon": "💼" },
+      { "name": "Planning", "icon": "📋" },
+      { "name": "Reading", "icon": "📖" }
+    ]
+  },
+  "others": {
+    "icon": "📋",
+    "activities": [
+      { "name": "Waste", "icon": "🗑️" },
+      { "name": "Break", "icon": "☕" },
+      { "name": "Edge", "icon": "🌐" },
+      { "name": "Entertainment", "icon": "🎬" },
+      { "name": "reels", "icon": "📱" },
+      { "name": "Chores", "icon": "🧹" },
+      { "name": "Housework", "icon": "🏠" },
+      { "name": "Eat", "icon": "🍽️" },
+      { "name": "Routine", "icon": "🔄" },
+      { "name": "Preparing drinks", "icon": "☕" },
+      { "name": "Unavoidable", "icon": "⚠️" },
+      { "name": "Niharika", "icon": "👥" },
+      { "name": "Transit", "icon": "🚌" },
+      { "name": "Social", "icon": "💬" },
+      { "name": "Shop", "icon": "🛒" },
+      { "name": "Mildly Productive", "icon": "📌" },
+      { "name": "Productive Entertainment videos", "icon": "📺" },
+      { "name": "Software entertainment videos", "icon": "💻" },
+      { "name": "Cleaning", "icon": "🧼" },
+      { "name": "Laying down", "icon": "🛋️" }
+    ]
+  }
+}
