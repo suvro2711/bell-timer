@@ -15,7 +15,7 @@
   "blockchain": {
     "icon": "⛓️",
     "activities": [
-      { "name": "Blockchain Build", "icon": "⛓️" },
+      { "name": "Blockchain Builds", "icon": "⛓️" },
       { "name": "Blockchain podcast", "icon": "🎙️" }
     ]
   },

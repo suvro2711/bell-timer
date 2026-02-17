@@ -1,16 +1,20 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation } from "wouter";
-import { Menu, X, Home, History, Settings, Info } from "lucide-react";
+import { Menu, X, Home, History, Settings, Info, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/hooks/use-auth";
 
 export function HamburgerMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const [location] = useLocation();
+  const { user, logout } = useAuth();
 
   const menuItems = [
     { path: "/", label: "Home", icon: Home },
     { path: "/history", label: "History", icon: History },
+    { path: "/activities", label: "Activities", icon: History },
+    { path: "/analysis", label: "Analysis", icon: Info },
     { path: "/settings", label: "Settings", icon: Settings },
     { path: "/about", label: "About", icon: Info },
   ];
@@ -77,7 +81,32 @@ export function HamburgerMenu() {
             </nav>
 
             {/* Menu Footer */}
-            <div className="p-6 border-t border-border">
+            <div className="p-6 border-t border-border space-y-3">
+              {user && (
+                <div className="flex items-center gap-3 mb-3">
+                  {user.picture && (
+                    <img
+                      src={user.picture}
+                      alt={user.name}
+                      className="w-8 h-8 rounded-full"
+                    />
+                  )}
+                  <div className="text-sm">
+                    <p className="font-medium text-foreground">{user.name}</p>
+                    <p className="text-xs text-muted-foreground">{user.email}</p>
+                  </div>
+                </div>
+              )}
+              <button
+                onClick={() => {
+                  closeMenu();
+                  logout();
+                }}
+                className="flex items-center gap-3 w-full px-4 py-2 rounded-xl text-red-400 hover:bg-red-500/10 transition-colors"
+              >
+                <LogOut className="w-5 h-5" />
+                <span className="font-medium">Sign Out</span>
+              </button>
               <p className="text-xs text-muted-foreground text-center">
                 FocusLoop Timer v1.0
               </p>

@@ -33,8 +33,13 @@ export const getQueryFn: <T>(options: {
       credentials: "include",
     });
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
+    if (res.status === 401) {
+      if (unauthorizedBehavior === "returnNull") {
+        return null;
+      }
+      // Redirect to login if not authenticated
+      window.location.href = "/";
+      throw new Error("Not authenticated");
     }
 
     await throwIfResNotOk(res);

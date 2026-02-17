@@ -7,7 +7,7 @@ import { TimerStats } from "@/components/TimerStats";
 import { ActivityStats } from "@/components/ActivityStats/ActivityStats";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-export default function HistoryPage() {
+export default function AnalysisPage() {
   const { data: sessions, isLoading } = useTimerSessions();
   const deleteSession = useDeleteTimerSession();
   const { toast } = useToast();
@@ -44,7 +44,7 @@ export default function HistoryPage() {
             <div className="p-2 bg-primary rounded-lg text-primary-foreground shadow-lg shadow-primary/20">
               <Clock className="w-6 h-6" />
             </div>
-            <h1 className="text-xl font-bold tracking-tight"> History</h1>
+            <h1 className="text-xl font-bold tracking-tight"> Analysis</h1>
           </div>
         </div>
       </header>

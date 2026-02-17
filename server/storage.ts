@@ -1,7 +1,8 @@
 import { googleSheetsService } from "./google-sheets";
+import { OAuthTokens } from "./google-oauth";
 
 export interface IStorage {
-  createSession(session: { intervalFrequency: number; timer: number }): Promise<{
+  createSession(tokens: OAuthTokens, session: { intervalFrequency: number; timer: number }): Promise<{
     id: number;
     intervalFrequency: number;
     timer: number;
@@ -13,7 +14,7 @@ export interface IStorage {
     timer: number;
     createdAt: Date;
   }>>;
-  deleteSession(id: number): Promise<boolean>;
+  deleteSession(tokens: OAuthTokens, id: number): Promise<boolean>;
 }
 
 // In-memory storage for session history (last 50 sessions)
@@ -28,13 +29,13 @@ const sessionHistory: Array<{
 let nextId = 1;
 
 export class SheetsStorage implements IStorage {
-  async syncFromGoogleSheets(): Promise<void> {
+  async syncFromGoogleSheets(tokens: OAuthTokens): Promise<void> {
     try {
-      const sheetSessions = await googleSheetsService.getRecentSessions(50);
-      
+      const sheetSessions = await googleSheetsService.getRecentSessions(tokens, 50);
+
       // Clear current in-memory storage
       sessionHistory.length = 0;
-      
+
       // Populate from Google Sheets
       let id = 1;
       sheetSessions.forEach(sheetSession => {
@@ -45,7 +46,7 @@ export class SheetsStorage implements IStorage {
           createdAt: new Date(sheetSession.timestamp),
         });
       });
-      
+
       nextId = id;
       console.log(`Synced ${sessionHistory.length} sessions from Google Sheets to memory`);
     } catch (error) {
@@ -53,33 +54,32 @@ export class SheetsStorage implements IStorage {
     }
   }
 
-  async createSession(session: { intervalFrequency: number; timer: number }) {
+  async createSession(tokens: OAuthTokens, session: { intervalFrequency: number; timer: number }) {
     const newSession = {
       id: nextId++,
       intervalFrequency: session.intervalFrequency,
       timer: session.timer,
       createdAt: new Date(),
     };
-    
+
     // Add to in-memory history (keep last 50)
     sessionHistory.unshift(newSession);
     if (sessionHistory.length > 50) {
       sessionHistory.pop();
     }
-    
+
     // Try to save to Google Sheets with retry logic
     try {
-      await googleSheetsService.appendSession({
+      await googleSheetsService.appendSession(tokens, {
         intervalFrequency: session.intervalFrequency,
         timer: session.timer,
         timestamp: newSession.createdAt.toISOString(),
-        totalDuration: session.timer * 60, // Convert minutes to seconds for total duration
+        totalDuration: session.timer * 60,
       });
     } catch (error) {
-      // Log error but don't fail the request - data is still in memory
       console.error('Failed to log to Google Sheets (data saved in memory):', error);
     }
-    
+
     return newSession;
   }
 
@@ -87,22 +87,22 @@ export class SheetsStorage implements IStorage {
     return sessionHistory;
   }
 
-  async deleteSession(id: number): Promise<boolean> {
+  async deleteSession(tokens: OAuthTokens, id: number): Promise<boolean> {
     const index = sessionHistory.findIndex(s => s.id === id);
     if (index === -1) {
       return false;
     }
-    
+
     const session = sessionHistory[index];
-    
+
     // Delete from Google Sheets using timestamp
     try {
-      await googleSheetsService.deleteSessionByTimestamp(session.createdAt.toISOString());
+      await googleSheetsService.deleteSessionByTimestamp(tokens, session.createdAt.toISOString());
       console.log(`Deleted session from Google Sheets: ${session.createdAt.toISOString()}`);
     } catch (error) {
       console.error('Failed to delete from Google Sheets (still deleting from memory):', error);
     }
-    
+
     // Delete from memory
     sessionHistory.splice(index, 1);
     console.log(`Deleted session with id ${id} from memory`);

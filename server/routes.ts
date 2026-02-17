@@ -5,32 +5,28 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import { googleSheetsService } from "./google-sheets";
 import { registerHealthRoutes } from "./routes-health";
+import { registerAuthRoutes, requireAuth, getTokensFromSession } from "./routes-auth";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // Register auth routes (login, callback, status, logout) — no auth required
+  registerAuthRoutes(app);
+
   // Register health check route
   registerHealthRoutes(app);
 
-  // Initialize Google Sheets on startup - create year sheet if needed
-  (async () => {
+  // All routes below require OAuth authentication
+  app.post(api.sessions.create.path, requireAuth, async (req, res) => {
     try {
-      await googleSheetsService.initializeSheet();
-      console.log('Google Sheets initialized successfully');
-    } catch (error) {
-      console.error('Failed to initialize Google Sheets:', error);
-    }
-  })();
-
-  app.post(api.sessions.create.path, async (req, res) => {
-    try {
+      const tokens = getTokensFromSession(req);
       console.log('POST /api/sessions received:', req.body);
       const input = api.sessions.create.input.parse(req.body);
       console.log('Parsed input:', input);
-      const session = await storage.createSession(input);
+      const session = await storage.createSession(tokens, input);
       console.log('Session created:', session);
-      
+
       res.status(201).json(session);
     } catch (err) {
       console.error('Error in POST /api/sessions:', err);
@@ -44,7 +40,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get(api.sessions.list.path, async (req, res) => {
+  app.get(api.sessions.list.path, requireAuth, async (req, res) => {
     const sessions = await storage.getSessions();
     res.json(sessions);
   });
@@ -66,14 +62,15 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/sessions/:id", async (req, res) => {
+  app.delete("/api/sessions/:id", requireAuth, async (req, res) => {
     try {
+      const tokens = getTokensFromSession(req);
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid session ID" });
       }
 
-      const deleted = await storage.deleteSession(id);
+      const deleted = await storage.deleteSession(tokens, id);
       if (!deleted) {
         return res.status(404).json({ error: "Session not found" });
       }
@@ -86,10 +83,11 @@ export async function registerRoutes(
   });
 
   // Get activity data endpoint
-  app.get('/api/activities', async (req, res) => {
+  app.get('/api/activities', requireAuth, async (req, res) => {
     try {
+      const tokens = getTokensFromSession(req);
       console.log('GET /api/activities - fetching activity data');
-      const activities = await googleSheetsService.getActivityData();
+      const activities = await googleSheetsService.getActivityData(tokens);
       console.log(`Returning ${activities.length} activities`);
       res.json(activities);
     } catch (error) {
@@ -99,19 +97,20 @@ export async function registerRoutes(
   });
 
   // Generic endpoint to fetch data from any spreadsheet/sheet
-  app.get('/api/sheets/:spreadsheetId/:sheetName', async (req, res) => {
+  app.get('/api/sheets/:spreadsheetId/:sheetName', requireAuth, async (req, res) => {
     try {
+      const tokens = getTokensFromSession(req);
       const { spreadsheetId, sheetName } = req.params;
       console.log(`GET /api/sheets/${spreadsheetId}/${sheetName}`);
-      
-      const data = await googleSheetsService.getSheetData(spreadsheetId, sheetName);
+
+      const data = await googleSheetsService.getSheetData(tokens, spreadsheetId, sheetName);
       console.log(`Returning ${data.length} rows from ${sheetName}`);
       res.json(data);
     } catch (error) {
       console.error('Error fetching sheet data:', error);
-      res.status(500).json({ 
-        error: 'Failed to fetch sheet data', 
-        message: error instanceof Error ? error.message : 'Unknown error' 
+      res.status(500).json({
+        error: 'Failed to fetch sheet data',
+        message: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   });

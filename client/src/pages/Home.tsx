@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { CircularTimer } from "@/components/CircularTimer";
 import { SoundPlayer } from "@/components/SoundPlayer";
-import { PinLock } from "@/components/PinLock";
+// import { PinLock } from "@/components/PinLock";
 import { HamburgerMenu } from "@/components/HamburgerMenu";
 import { Toaster } from "@/components/ui/toaster";
 import { useToast } from "@/hooks/use-toast";
@@ -66,7 +66,12 @@ export default function Home() {
   useEffect(() => {
     const initializeSheets = async () => {
       try {
-        const response = await fetch('/api/health');
+        const response = await fetch('/api/health', { credentials: 'include' });
+        
+        if (response.status === 401) {
+          console.warn('Not authenticated, skipping health check');
+          return;
+        }
         
         if (!response.ok) {
           console.warn('Health check returned non-OK status:', response.status);
@@ -80,17 +85,25 @@ export default function Home() {
         }
         
         const data = await response.json();
-        console.log('Sheets initialization check:', data);
+        console.log('Health check status:', {
+          status: data.status,
+          sheetsInitialized: data.sheetsInitialized,
+          user: data.user?.email,
+        });
         
-        if (!data.sheetsInitialized) {
+        // Only show warning for actual errors, not degraded state
+        if (data.status === 'error') {
           toast({
-            title: "Warning",
-            description: "Google Sheets initialization failed. Check server logs.",
+            title: "Connection Error",
+            description: "Unable to initialize Google Sheets. Check your credentials.",
             variant: "destructive",
           });
+        } else if (data.status === 'degraded' && !data.sheetsInitialized) {
+          console.warn('Google Sheets initialization failed but app is still functional');
+          // Don't toast - degraded is expected on first load while sheets init
         }
       } catch (error) {
-        console.error('Failed to check sheets initialization:', error);
+        console.error('Failed to check health:', error);
       }
     };
     
@@ -193,9 +206,9 @@ export default function Home() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  if (!isUnlocked) {
-    return <PinLock onUnlock={() => setIsUnlocked(true)} />;
-  }
+  // if (!isUnlocked) {
+  //   return <PinLock onUnlock={() => setIsUnlocked(true)} />;
+  // }
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col font-sans">

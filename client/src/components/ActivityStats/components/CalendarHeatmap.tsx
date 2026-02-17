@@ -1,18 +1,22 @@
 import { useMemo } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ActivityRowData } from "../ActivityInterface";
 
 interface CalendarHeatmapProps {
-  data: any[];
+  data: ActivityRowData[];
   activityName: string;
+  year: number;
+  onYearChange: (year: number) => void;
 }
 
-export function CalendarHeatmap({ data, activityName }: CalendarHeatmapProps) {
+export function CalendarHeatmap({ data, activityName, year, onYearChange }: CalendarHeatmapProps) {
   // Process data to get time spent per day (in hours)
   const heatmapData = useMemo(() => {
     const dayMap = new Map<string, number>();
     
     data.forEach((row) => {
-      // Extract date from "From" field (format: "DD-MM-YYYY HH:MM")
-      const dateStr = row.From || row.from;
+      // Extract date from "from" field (format: "DD-MM-YYYY HH:MM")
+      const dateStr = row.from;
       if (!dateStr) return;
       
       const [datePart] = dateStr.split(' ');
@@ -21,7 +25,7 @@ export function CalendarHeatmap({ data, activityName }: CalendarHeatmapProps) {
       
       // Parse duration (can be in format "HH:MM" or just hours as number)
       let hours = 0;
-      const durationStr = row['Duration(hours)'] || row.duration || row.Duration || '0';
+      const durationStr = row.duration || '0';
       
       if (typeof durationStr === 'string' && durationStr.includes(':')) {
         // Format: "HH:MM"
@@ -29,7 +33,7 @@ export function CalendarHeatmap({ data, activityName }: CalendarHeatmapProps) {
         hours = h + (m / 60);
       } else {
         // Format: number or string number
-        hours = parseFloat(durationStr) || 0;
+        hours = parseFloat(String(durationStr)) || 0;
       }
       
       dayMap.set(date, (dayMap.get(date) || 0) + hours);
@@ -40,7 +44,6 @@ export function CalendarHeatmap({ data, activityName }: CalendarHeatmapProps) {
 
   // Generate calendar grid for the year
   const calendarGrid = useMemo(() => {
-    const year = 2025;
     const startDate = new Date(year, 0, 1);
     const endDate = new Date(year, 11, 31);
     
@@ -76,7 +79,50 @@ export function CalendarHeatmap({ data, activityName }: CalendarHeatmapProps) {
     }
     
     return weeks;
-  }, []);
+  }, [year]);
+
+  // Generate month labels
+  const monthLabels = useMemo(() => {
+    const labels: { month: string; startWeek: number; weeksSpan: number }[] = [];
+    let currentMonth = -1;
+    let startWeek = 0;
+    let weeksInMonth = 0;
+
+    calendarGrid.forEach((week, weekIdx) => {
+      const firstRealDay = week.find(d => d.getTime() !== 0);
+      if (firstRealDay) {
+        const month = firstRealDay.getMonth();
+        if (month !== currentMonth) {
+          if (currentMonth !== -1) {
+            labels.push({
+              month: new Date(year, currentMonth).toLocaleDateString('en-US', { month: 'short' }),
+              startWeek,
+              weeksSpan: weeksInMonth
+            });
+          }
+          currentMonth = month;
+          startWeek = weekIdx;
+          weeksInMonth = 1;
+        } else {
+          weeksInMonth++;
+        }
+      }
+    });
+
+    // Add last month
+    if (currentMonth !== -1) {
+      labels.push({
+        month: new Date(year, currentMonth).toLocaleDateString('en-US', { month: 'short' }),
+        startWeek,
+        weeksSpan: weeksInMonth
+      });
+    }
+
+    return labels;
+  }, [calendarGrid, year]);
+
+  const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const availableYears = [2023, 2024, 2025, 2026];
 
   const getColor = (hours: number) => {
     if (hours === 0) return 'bg-gray-100 dark:bg-gray-800';
@@ -95,11 +141,51 @@ export function CalendarHeatmap({ data, activityName }: CalendarHeatmapProps) {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-lg font-semibold">{activityName} Consistency</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold">{activityName} Consistency</h3>
+        <Select value={year.toString()} onValueChange={(val) => onYearChange(parseInt(val))}>
+          <SelectTrigger className="w-32">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {availableYears.map((y) => (
+              <SelectItem key={y} value={y.toString()}>
+                {y}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
       
       <div className="overflow-x-auto">
         <div className="inline-block min-w-full">
+          {/* Month labels */}
+          <div className="flex ml-8 mb-1">
+            {monthLabels.map((label, idx) => (
+              <div
+                key={idx}
+                className="text-xs text-muted-foreground"
+                style={{ 
+                  width: `${label.weeksSpan * 16}px`,
+                  minWidth: `${label.weeksSpan * 16}px`
+                }}
+              >
+                {label.month}
+              </div>
+            ))}
+          </div>
+
           <div className="flex gap-1">
+            {/* Weekday labels */}
+            <div className="flex flex-col gap-1 text-xs text-muted-foreground justify-around pr-2">
+              {weekDays.map((day, idx) => (
+                <div key={idx} className="h-3 flex items-center">
+                  {idx % 2 === 1 ? day : ''}
+                </div>
+              ))}
+            </div>
+
+            {/* Calendar grid */}
             {calendarGrid.map((week, weekIdx) => (
               <div key={weekIdx} className="flex flex-col gap-1">
                 {week.map((date, dayIdx) => {
@@ -125,7 +211,7 @@ export function CalendarHeatmap({ data, activityName }: CalendarHeatmapProps) {
             ))}
           </div>
           
-          <div className="flex items-center gap-2 mt-4 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 mt-4 text-xs text-muted-foreground ml-8">
             <span>Less</span>
             <div className="flex gap-1">
               <div className={`w-3 h-3 rounded-sm ${getColor(0)}`} />
