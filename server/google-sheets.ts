@@ -22,11 +22,19 @@ export type GoogleSheetsSession = z.infer<typeof googleSheetsSessionSchema>;
 export class GoogleSheetsService {
   private readonly spreadsheetId: string;
   private readonly statsSpreadsheetId: string;
+  private readonly niharikaSpreadsheetId: string;
   private initializationSuccessful = false;
 
   constructor() {
     this.spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID || '';
     this.statsSpreadsheetId = process.env.MY_STATS_SHEETS_SPREADSHEET_ID || '';
+    this.niharikaSpreadsheetId = process.env.NIHARIKA_DAILY_RATING_SHEETS_SPREADSHEET_ID || '';
+  }
+
+  private async getFirstSheetName(tokens: OAuthTokens, spreadsheetId: string): Promise<string> {
+    const sheets = this.getSheetsClient(tokens);
+    const metadata = await sheets.spreadsheets.get({ spreadsheetId });
+    return metadata.data.sheets?.[0]?.properties?.title || 'Sheet1';
   }
 
   private getSheetsClient(tokens: OAuthTokens): sheets_v4.Sheets {
@@ -417,6 +425,162 @@ export class GoogleSheetsService {
       console.error('Error fetching activity data:', error);
       return [];
     }
+  }
+
+  async getNiharikaRatings(tokens: OAuthTokens, sheetName?: string): Promise<any[]> {
+    if (!tokens || !this.niharikaSpreadsheetId) {
+      console.log('Niharika spreadsheet not configured or not authenticated');
+      return [];
+    }
+
+    const sheetsClient = this.getSheetsClient(tokens);
+    const resolvedSheetName = sheetName || await this.getFirstSheetName(tokens, this.niharikaSpreadsheetId);
+
+    try {
+      const response = await sheetsClient.spreadsheets.values.get({
+        spreadsheetId: this.niharikaSpreadsheetId,
+        range: `'${resolvedSheetName}'!A:Z`,
+      });
+
+      const rows = response.data.values || [];
+      if (rows.length === 0) return [];
+
+      const headers = rows[0].map((h: string) => h.trim().toLowerCase());
+
+      return rows.slice(1).map((row, index) => {
+        const item: Record<string, any> = { rowNumber: index + 2 };
+        headers.forEach((header: string, colIndex: number) => {
+          item[header] = row[colIndex] || '';
+        });
+
+        // Normalize potential misspellings from source sheets
+        if (!item.shubro_rating && item.shubhro_rating) {
+          item.shubro_rating = item.shubhro_rating;
+        }
+        if (!item.future_imporvement && item.future_improvement) {
+          item.future_imporvement = item.future_improvement;
+        }
+
+        return item;
+      });
+    } catch (error) {
+      console.error('Error fetching Niharika ratings:', error);
+      throw error;
+    }
+  }
+
+  async createNiharikaRating(tokens: OAuthTokens, payload: {
+    date: string;
+    niharika_rating: number;
+    good_action_shubhro: string;
+    bad_action_shubhro: string;
+    shubro_rating: number;
+    shubhro_comments: string;
+    future_imporvement: string;
+    sheetName?: string;
+  }): Promise<void> {
+    if (!tokens || !this.niharikaSpreadsheetId) {
+      throw new Error('Niharika spreadsheet not configured or not authenticated');
+    }
+
+    const sheetsClient = this.getSheetsClient(tokens);
+    const resolvedSheetName = payload.sheetName || await this.getFirstSheetName(tokens, this.niharikaSpreadsheetId);
+
+    await sheetsClient.spreadsheets.values.append({
+      spreadsheetId: this.niharikaSpreadsheetId,
+      range: `'${resolvedSheetName}'!A:G`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[
+          payload.date,
+          payload.niharika_rating,
+          payload.good_action_shubhro,
+          payload.bad_action_shubhro,
+          payload.shubro_rating,
+          payload.shubhro_comments,
+          payload.future_imporvement,
+        ]],
+      },
+    });
+  }
+
+  async updateNiharikaRating(tokens: OAuthTokens, payload: {
+    rowNumber: number;
+    date: string;
+    niharika_rating: number;
+    good_action_shubhro: string;
+    bad_action_shubhro: string;
+    shubro_rating: number;
+    shubhro_comments: string;
+    future_imporvement: string;
+    sheetName?: string;
+  }): Promise<void> {
+    if (!tokens || !this.niharikaSpreadsheetId) {
+      throw new Error('Niharika spreadsheet not configured or not authenticated');
+    }
+
+    const sheetsClient = this.getSheetsClient(tokens);
+    const resolvedSheetName = payload.sheetName || await this.getFirstSheetName(tokens, this.niharikaSpreadsheetId);
+
+    await sheetsClient.spreadsheets.values.update({
+      spreadsheetId: this.niharikaSpreadsheetId,
+      range: `'${resolvedSheetName}'!A${payload.rowNumber}:G${payload.rowNumber}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[
+          payload.date,
+          payload.niharika_rating,
+          payload.good_action_shubhro,
+          payload.bad_action_shubhro,
+          payload.shubro_rating,
+          payload.shubhro_comments,
+          payload.future_imporvement,
+        ]],
+      },
+    });
+  }
+
+  async deleteNiharikaRating(tokens: OAuthTokens, payload: {
+    rowNumber: number;
+    sheetName?: string;
+  }): Promise<void> {
+    if (!tokens || !this.niharikaSpreadsheetId) {
+      throw new Error('Niharika spreadsheet not configured or not authenticated');
+    }
+
+    const sheetsClient = this.getSheetsClient(tokens);
+    const resolvedSheetName = payload.sheetName || await this.getFirstSheetName(tokens, this.niharikaSpreadsheetId);
+
+    const sheetMetadata = await sheetsClient.spreadsheets.get({
+      spreadsheetId: this.niharikaSpreadsheetId,
+    });
+
+    const targetSheet = sheetMetadata.data.sheets?.find(
+      (sheet) => sheet.properties?.title === resolvedSheetName,
+    );
+
+    const sheetId = targetSheet?.properties?.sheetId;
+    if (sheetId === undefined) {
+      throw new Error(`Could not find sheet ID for sheet: ${resolvedSheetName}`);
+    }
+
+    await sheetsClient.spreadsheets.batchUpdate({
+      spreadsheetId: this.niharikaSpreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            deleteDimension: {
+              range: {
+                sheetId,
+                dimension: 'ROWS',
+                startIndex: payload.rowNumber - 1,
+                endIndex: payload.rowNumber,
+              },
+            },
+          },
+        ],
+      },
+    });
   }
 
   async getSheetData(tokens: OAuthTokens, spreadsheetId: string, sheetName: string): Promise<any[]> {

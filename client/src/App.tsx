@@ -11,6 +11,7 @@ import NotFound from "@/pages/not-found";
 import StatisticsPage from "./pages/Statistics";
 import Activities from "./pages/Activities";
 import LoginPage from "./pages/Login";
+import NiharikaPage from "./pages/Niharika";
 import { useAuth } from "./hooks/use-auth";
 
 function Router() {
@@ -20,6 +21,7 @@ function Router() {
       <Route path="/history" component={AnalysisPage} />
       <Route path="/analysis" component={StatisticsPage} />
       <Route path="/activities" component={Activities} />
+      <Route path="/niharika" component={NiharikaPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/about" component={AboutPage} />
       <Route component={NotFound} />

@@ -7,6 +7,17 @@ import { googleSheetsService } from "./google-sheets";
 import { registerHealthRoutes } from "./routes-health";
 import { registerAuthRoutes, requireAuth, getTokensFromSession } from "./routes-auth";
 
+const niharikaRatingSchema = z.object({
+  date: z.string().min(1),
+  niharika_rating: z.number().min(1).max(5),
+  good_action_shubhro: z.string().default(""),
+  bad_action_shubhro: z.string().default(""),
+  shubro_rating: z.number().min(1).max(5),
+  shubhro_comments: z.string().default(""),
+  future_imporvement: z.string().default(""),
+  sheetName: z.string().optional(),
+});
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -110,6 +121,88 @@ export async function registerRoutes(
       console.error('Error fetching sheet data:', error);
       res.status(500).json({
         error: 'Failed to fetch sheet data',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  app.get('/api/niharika/ratings', requireAuth, async (req, res) => {
+    try {
+      const tokens = getTokensFromSession(req);
+      const sheetName = typeof req.query.sheetName === 'string' ? req.query.sheetName : undefined;
+      const data = await googleSheetsService.getNiharikaRatings(tokens, sheetName);
+      res.json(data);
+    } catch (error) {
+      console.error('Error fetching Niharika ratings:', error);
+      res.status(500).json({
+        error: 'Failed to fetch Niharika ratings',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  app.post('/api/niharika/ratings', requireAuth, async (req, res) => {
+    try {
+      const tokens = getTokensFromSession(req);
+      const input = niharikaRatingSchema.parse(req.body);
+      await googleSheetsService.createNiharikaRating(tokens, input);
+      res.status(201).json({ success: true });
+    } catch (error) {
+      console.error('Error creating Niharika rating:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          error: 'Invalid input',
+          details: error.errors,
+        });
+      }
+      res.status(500).json({
+        error: 'Failed to create Niharika rating',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  app.put('/api/niharika/ratings/:rowNumber', requireAuth, async (req, res) => {
+    try {
+      const tokens = getTokensFromSession(req);
+      const rowNumber = Number.parseInt(req.params.rowNumber, 10);
+      if (Number.isNaN(rowNumber) || rowNumber < 2) {
+        return res.status(400).json({ error: 'Invalid rowNumber' });
+      }
+
+      const input = niharikaRatingSchema.parse(req.body);
+      await googleSheetsService.updateNiharikaRating(tokens, { ...input, rowNumber });
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error updating Niharika rating:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          error: 'Invalid input',
+          details: error.errors,
+        });
+      }
+      res.status(500).json({
+        error: 'Failed to update Niharika rating',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  app.delete('/api/niharika/ratings/:rowNumber', requireAuth, async (req, res) => {
+    try {
+      const tokens = getTokensFromSession(req);
+      const rowNumber = Number.parseInt(req.params.rowNumber, 10);
+      if (Number.isNaN(rowNumber) || rowNumber < 2) {
+        return res.status(400).json({ error: 'Invalid rowNumber' });
+      }
+
+      const sheetName = typeof req.query.sheetName === 'string' ? req.query.sheetName : undefined;
+      await googleSheetsService.deleteNiharikaRating(tokens, { rowNumber, sheetName });
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting Niharika rating:', error);
+      res.status(500).json({
+        error: 'Failed to delete Niharika rating',
         message: error instanceof Error ? error.message : 'Unknown error',
       });
     }
