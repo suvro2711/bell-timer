@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { SessionsTable } from "@/components/SessionsTable";
 import { TimerStats } from "@/components/TimerStats";
 import { ActivityStats } from "@/components/ActivityStats/ActivityStats";
+import { SleepActivity } from "@/components/Activties/sleep/SleepActivity";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function AnalysisPage() {
@@ -55,6 +56,7 @@ export default function AnalysisPage() {
             <TabsTrigger value="sessions">Sessions</TabsTrigger>
             <TabsTrigger value="stats">Timer Stats</TabsTrigger>
             <TabsTrigger value="activities">Activity Analysis</TabsTrigger>
+            <TabsTrigger value="sleep">Sleep</TabsTrigger>
           </TabsList>
           
           <TabsContent value="sessions">
@@ -74,6 +76,10 @@ export default function AnalysisPage() {
           
           <TabsContent value="activities">
             <ActivityStats />
+          </TabsContent>
+
+          <TabsContent value="sleep">
+            <SleepActivity />
           </TabsContent>
         </Tabs>
       </main>
