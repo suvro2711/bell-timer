@@ -453,12 +453,38 @@ export class GoogleSheetsService {
           item[header] = row[colIndex] || '';
         });
 
-        // Normalize potential misspellings from source sheets
-        if (!item.shubro_rating && item.shubhro_rating) {
-          item.shubro_rating = item.shubhro_rating;
+        // Normalize potential misspellings and different header formats from source sheets
+        if (!item.niharika_rating && item['niharika rating']) item.niharika_rating = item['niharika rating'];
+        if (!item.good_action_shubhro && item['good action']) item.good_action_shubhro = item['good action'];
+        if (!item.bad_action_shubhro && item['bad action']) item.bad_action_shubhro = item['bad action'];
+        if (!item.shubro_rating && item['shubhro rating']) item.shubro_rating = item['shubhro rating'];
+        if (!item.shubro_rating && item.shubhro_rating) item.shubro_rating = item.shubhro_rating;
+        if (!item.shubhro_comments && item['comments']) item.shubhro_comments = item['comments'];
+        if (!item.future_imporvement && item['future improvement']) item.future_imporvement = item['future improvement'];
+        if (!item.future_imporvement && item.future_improvement) item.future_imporvement = item.future_improvement;
+        if (!item.upset_reason && item['upset reason']) item.upset_reason = item['upset reason'];
+        
+        // Fallback: if upset_reason is still not set but there's data in column H (index 7)
+        // and no header was defined for it, use it as upset_reason
+        if (!item.upset_reason && row[7] && headers.length <= 7) {
+          item.upset_reason = row[7];
         }
-        if (!item.future_imporvement && item.future_improvement) {
-          item.future_imporvement = item.future_improvement;
+
+        // Calculate upset_count from upset_reason
+        if (item.upset_reason) {
+          const upsetStr = item.upset_reason as string;
+          if (!upsetStr.includes('reason:') && !upsetStr.includes('intensity:')) {
+            // Plain text entry
+            item.upset_count = upsetStr.trim() ? 1 : 0;
+          } else {
+            // Formatted entry
+            item.upset_count = upsetStr
+              .split(',')
+              .filter((entry: string) => entry.trim().includes('reason:'))
+              .length;
+          }
+        } else {
+          item.upset_count = 0;
         }
 
         return item;
@@ -477,6 +503,7 @@ export class GoogleSheetsService {
     shubro_rating: number;
     shubhro_comments: string;
     future_imporvement: string;
+    upset_reason: string;
     sheetName?: string;
   }): Promise<void> {
     if (!tokens || !this.niharikaSpreadsheetId) {
@@ -486,20 +513,77 @@ export class GoogleSheetsService {
     const sheetsClient = this.getSheetsClient(tokens);
     const resolvedSheetName = payload.sheetName || await this.getFirstSheetName(tokens, this.niharikaSpreadsheetId);
 
+    // First, get the headers to find the correct columns
+    const headerResponse = await sheetsClient.spreadsheets.values.get({
+      spreadsheetId: this.niharikaSpreadsheetId,
+      range: `'${resolvedSheetName}'!A1:Z1`,
+    });
+
+    let headers = headerResponse.data.values?.[0] || [];
+    
+    // If no headers, create them
+    if (headers.length === 0) {
+      headers = ['Date', 'Niharika Rating', 'Good Action', 'Bad Action', 'Shubhro Rating', 'Comments', 'Future Improvement', 'Upset Reason'];
+      await sheetsClient.spreadsheets.values.update({
+        spreadsheetId: this.niharikaSpreadsheetId,
+        range: `'${resolvedSheetName}'!A1:H1`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [headers],
+        },
+      });
+    }
+
+    // Find column indices
+    const headerMap: Record<string, number> = {};
+    headers.forEach((h: string, idx: number) => {
+      headerMap[h.toLowerCase().trim()] = idx;
+    });
+
+    // If upset reason column doesn't exist, add it to headers
+    if (headerMap['upset reason'] === undefined && headerMap['upset_reason'] === undefined) {
+      headers.push('Upset Reason');
+      headerMap['upset reason'] = headers.length - 1;
+      
+      // Update headers in sheet
+      await sheetsClient.spreadsheets.values.update({
+        spreadsheetId: this.niharikaSpreadsheetId,
+        range: `'${resolvedSheetName}'!A1:Z1`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [headers],
+        },
+      });
+    }
+
+    // Build row with correct column positions
+    const maxCol = Math.max(
+      headerMap['date'] ?? 0,
+      headerMap['niharika rating'] ?? headerMap['niharika_rating'] ?? 1,
+      headerMap['good action'] ?? headerMap['good_action_shubhro'] ?? 2,
+      headerMap['bad action'] ?? headerMap['bad_action_shubhro'] ?? 3,
+      headerMap['shubhro rating'] ?? headerMap['shubro_rating'] ?? 4,
+      headerMap['comments'] ?? headerMap['shubhro_comments'] ?? 5,
+      headerMap['future improvement'] ?? headerMap['future_imporvement'] ?? 6,
+      headerMap['upset reason'] ?? headerMap['upset_reason'] ?? 7
+    );
+
+    const row = new Array(maxCol + 1).fill('');
+    row[headerMap['date'] ?? 0] = payload.date;
+    row[headerMap['niharika rating'] ?? headerMap['niharika_rating'] ?? 1] = payload.niharika_rating;
+    row[headerMap['good action'] ?? headerMap['good_action_shubhro'] ?? 2] = payload.good_action_shubhro;
+    row[headerMap['bad action'] ?? headerMap['bad_action_shubhro'] ?? 3] = payload.bad_action_shubhro;
+    row[headerMap['shubhro rating'] ?? headerMap['shubro_rating'] ?? 4] = payload.shubro_rating;
+    row[headerMap['comments'] ?? headerMap['shubhro_comments'] ?? 5] = payload.shubhro_comments;
+    row[headerMap['future improvement'] ?? headerMap['future_imporvement'] ?? 6] = payload.future_imporvement;
+    row[headerMap['upset reason'] ?? headerMap['upset_reason'] ?? 7] = payload.upset_reason;
+
     await sheetsClient.spreadsheets.values.append({
       spreadsheetId: this.niharikaSpreadsheetId,
-      range: `'${resolvedSheetName}'!A:G`,
+      range: `'${resolvedSheetName}'!A:Z`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
-        values: [[
-          payload.date,
-          payload.niharika_rating,
-          payload.good_action_shubhro,
-          payload.bad_action_shubhro,
-          payload.shubro_rating,
-          payload.shubhro_comments,
-          payload.future_imporvement,
-        ]],
+        values: [row],
       },
     });
   }
@@ -513,6 +597,7 @@ export class GoogleSheetsService {
     shubro_rating: number;
     shubhro_comments: string;
     future_imporvement: string;
+    upset_reason: string;
     sheetName?: string;
   }): Promise<void> {
     if (!tokens || !this.niharikaSpreadsheetId) {
@@ -522,20 +607,64 @@ export class GoogleSheetsService {
     const sheetsClient = this.getSheetsClient(tokens);
     const resolvedSheetName = payload.sheetName || await this.getFirstSheetName(tokens, this.niharikaSpreadsheetId);
 
+    // Get headers to find correct columns
+    const headerResponse = await sheetsClient.spreadsheets.values.get({
+      spreadsheetId: this.niharikaSpreadsheetId,
+      range: `'${resolvedSheetName}'!A1:Z1`,
+    });
+
+    const headers = headerResponse.data.values?.[0] || [];
+    
+    // Find column indices
+    const headerMap: Record<string, number> = {};
+    headers.forEach((h: string, idx: number) => {
+      headerMap[h.toLowerCase().trim()] = idx;
+    });
+
+    // If upset reason column doesn't exist, add it to headers
+    if (headerMap['upset reason'] === undefined && headerMap['upset_reason'] === undefined) {
+      headers.push('Upset Reason');
+      headerMap['upset reason'] = headers.length - 1;
+      
+      // Update headers in sheet
+      await sheetsClient.spreadsheets.values.update({
+        spreadsheetId: this.niharikaSpreadsheetId,
+        range: `'${resolvedSheetName}'!A1:Z1`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [headers],
+        },
+      });
+    }
+
+    // Build row with correct column positions
+    const maxCol = Math.max(
+      headerMap['date'] ?? 0,
+      headerMap['niharika rating'] ?? headerMap['niharika_rating'] ?? 1,
+      headerMap['good action'] ?? headerMap['good_action_shubhro'] ?? 2,
+      headerMap['bad action'] ?? headerMap['bad_action_shubhro'] ?? 3,
+      headerMap['shubhro rating'] ?? headerMap['shubro_rating'] ?? 4,
+      headerMap['comments'] ?? headerMap['shubhro_comments'] ?? 5,
+      headerMap['future improvement'] ?? headerMap['future_imporvement'] ?? 6,
+      headerMap['upset reason'] ?? headerMap['upset_reason'] ?? 7
+    );
+
+    const row = new Array(maxCol + 1).fill('');
+    row[headerMap['date'] ?? 0] = payload.date;
+    row[headerMap['niharika rating'] ?? headerMap['niharika_rating'] ?? 1] = payload.niharika_rating;
+    row[headerMap['good action'] ?? headerMap['good_action_shubhro'] ?? 2] = payload.good_action_shubhro;
+    row[headerMap['bad action'] ?? headerMap['bad_action_shubhro'] ?? 3] = payload.bad_action_shubhro;
+    row[headerMap['shubhro rating'] ?? headerMap['shubro_rating'] ?? 4] = payload.shubro_rating;
+    row[headerMap['comments'] ?? headerMap['shubhro_comments'] ?? 5] = payload.shubhro_comments;
+    row[headerMap['future improvement'] ?? headerMap['future_imporvement'] ?? 6] = payload.future_imporvement;
+    row[headerMap['upset reason'] ?? headerMap['upset_reason'] ?? 7] = payload.upset_reason;
+
     await sheetsClient.spreadsheets.values.update({
       spreadsheetId: this.niharikaSpreadsheetId,
-      range: `'${resolvedSheetName}'!A${payload.rowNumber}:G${payload.rowNumber}`,
+      range: `'${resolvedSheetName}'!A${payload.rowNumber}:Z${payload.rowNumber}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
-        values: [[
-          payload.date,
-          payload.niharika_rating,
-          payload.good_action_shubhro,
-          payload.bad_action_shubhro,
-          payload.shubro_rating,
-          payload.shubhro_comments,
-          payload.future_imporvement,
-        ]],
+        values: [row],
       },
     });
   }

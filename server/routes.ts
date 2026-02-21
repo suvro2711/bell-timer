@@ -15,6 +15,7 @@ const niharikaRatingSchema = z.object({
   shubro_rating: z.number().min(1).max(5),
   shubhro_comments: z.string().default(""),
   future_imporvement: z.string().default(""),
+  upset_reason: z.string().default(""),
   sheetName: z.string().optional(),
 });
 
