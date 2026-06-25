@@ -1,4 +1,4 @@
 [
-  { "activity_name": "Deep Work", "group": "Work", "tags": ["focus", "billable"] },
-  { "activity_name": "Run", "group": "Fitness", "tags": ["cardio"] }
+  { "activity_name": "Deep Work", "groups": ["Work"], "tags": ["focus", "billable"], "is_background": false },
+  { "activity_name": "Run", "groups": ["Fitness"], "tags": ["cardio"], "is_background": false }
 ]

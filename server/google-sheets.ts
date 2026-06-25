@@ -24,6 +24,7 @@ export class GoogleSheetsService {
   private readonly statsSpreadsheetId: string;
   private readonly niharikaSpreadsheetId: string;
   private readonly taxonomySheetName = 'ActivityTaxonomy';
+  private readonly groupsSheetName = 'ActivityGroups';
   private initializationSuccessful = false;
 
   constructor() {
@@ -799,10 +800,10 @@ export class GoogleSheetsService {
 
         await sheets.spreadsheets.values.update({
           spreadsheetId: this.statsSpreadsheetId,
-          range: `'${this.taxonomySheetName}'!A1:C1`,
+          range: `'${this.taxonomySheetName}'!A1:D1`,
           valueInputOption: 'USER_ENTERED',
           requestBody: {
-            values: [['activity_name', 'group', 'tags_csv']],
+            values: [['activity_name', 'groups_csv', 'tags_csv', 'is_background']],
           },
         });
 
@@ -814,18 +815,21 @@ export class GoogleSheetsService {
   /**
    * Reads the saved activity group/tag mappings from the ActivityTaxonomy sheet.
    */
-  async getActivityTaxonomy(tokens: OAuthTokens): Promise<Array<{ activity_name: string; group: string; tags: string[] }>> {
+  async getActivityTaxonomy(tokens: OAuthTokens): Promise<Array<{ activity_name: string; groups: string[]; tags: string[]; is_background: boolean }>> {
     if (!tokens || !this.statsSpreadsheetId) {
       console.log('Stats spreadsheet not configured or not authenticated');
       return [];
     }
+
+    // Ensure the sheet exists before trying to read it (avoids "Unable to parse range" error)
+    await this.ensureTaxonomySheetExists(tokens);
 
     const sheetsClient = this.getSheetsClient(tokens);
 
     try {
       const response = await sheetsClient.spreadsheets.values.get({
         spreadsheetId: this.statsSpreadsheetId,
-        range: `'${this.taxonomySheetName}'!A:C`,
+        range: `'${this.taxonomySheetName}'!A:D`,
       });
 
       const rows = response.data.values || [];
@@ -833,25 +837,32 @@ export class GoogleSheetsService {
 
       const headers = (rows[0] || []).map((h: string) => (h || '').toString().trim().toLowerCase());
       const nameIdx = headers.indexOf('activity_name');
-      const groupIdx = headers.indexOf('group');
+      const groupsIdx = headers.indexOf('groups_csv');
+      // backward-compat: old sheets only had 'group' (single)
+      const groupFallbackIdx = headers.indexOf('group');
       const tagsIdx = headers.indexOf('tags_csv');
+      const bgIdx = headers.indexOf('is_background');
 
-      return rows.slice(1).reduce<Array<{ activity_name: string; group: string; tags: string[] }>>((acc, row) => {
+      return rows.slice(1).reduce<Array<{ activity_name: string; groups: string[]; tags: string[]; is_background: boolean }>>((acc, row) => {
         const activity_name = ((nameIdx >= 0 ? row[nameIdx] : row[0]) || '').toString().trim();
         if (!activity_name) return acc;
 
-        const group = ((groupIdx >= 0 ? row[groupIdx] : row[1]) || '').toString().trim();
-        const tagsCsv = ((tagsIdx >= 0 ? row[tagsIdx] : row[2]) || '').toString();
-        const tags = tagsCsv
-          .split(',')
-          .map((tag: string) => tag.trim())
-          .filter((tag: string) => tag.length > 0);
+        // groups_csv column takes precedence; fall back to old single 'group' column
+        const rawGroups = groupsIdx >= 0 ? (row[groupsIdx] || '').toString()
+          : groupFallbackIdx >= 0 ? (row[groupFallbackIdx] || '').toString()
+          : '';
+        const groups = rawGroups.split(',').map((g: string) => g.trim()).filter((g: string) => g.length > 0);
 
-        acc.push({ activity_name, group, tags });
+        const tagsCsv = ((tagsIdx >= 0 ? row[tagsIdx] : row[2]) || '').toString();
+        const tags = tagsCsv.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0);
+
+        const bgRaw = ((bgIdx >= 0 ? row[bgIdx] : '') || '').toString().trim().toLowerCase();
+        const is_background = bgRaw === 'true' || bgRaw === 'yes' || bgRaw === '1';
+
+        acc.push({ activity_name, groups, tags, is_background });
         return acc;
       }, []);
     } catch (error) {
-      // Sheet likely does not exist yet — treat as empty.
       console.warn('Error fetching activity taxonomy (treating as empty):', error instanceof Error ? error.message : error);
       return [];
     }
@@ -862,7 +873,7 @@ export class GoogleSheetsService {
    */
   async saveActivityTaxonomy(
     tokens: OAuthTokens,
-    entries: Array<{ activity_name: string; group: string; tags: string[] }>,
+    entries: Array<{ activity_name: string; groups: string[]; tags: string[]; is_background: boolean }>,
   ): Promise<void> {
     if (!tokens || !this.statsSpreadsheetId) {
       throw new Error('Stats spreadsheet not configured or not authenticated');
@@ -875,23 +886,27 @@ export class GoogleSheetsService {
     const normalized = entries
       .map(entry => {
         const activity_name = (entry.activity_name || '').trim();
-        const group = (entry.group || '').trim();
-        const tags = Array.from(
-          new Set((entry.tags || []).map(tag => tag.trim()).filter(tag => tag.length > 0)),
-        );
-        return { activity_name, group, tags };
+        const groups = Array.from(new Set((entry.groups || []).map((g: string) => g.trim()).filter((g: string) => g.length > 0)));
+        const tags = Array.from(new Set((entry.tags || []).map((t: string) => t.trim()).filter((t: string) => t.length > 0)));
+        const is_background = !!entry.is_background;
+        return { activity_name, groups, tags, is_background };
       })
       .filter(entry => entry.activity_name.length > 0);
 
     const values = [
-      ['activity_name', 'group', 'tags_csv'],
-      ...normalized.map(entry => [entry.activity_name, entry.group, entry.tags.join(', ')]),
+      ['activity_name', 'groups_csv', 'tags_csv', 'is_background'],
+      ...normalized.map(entry => [
+        entry.activity_name,
+        entry.groups.join(', '),
+        entry.tags.join(', '),
+        entry.is_background ? 'TRUE' : 'FALSE',
+      ]),
     ];
 
     await this.retryOperation(async () => {
       await sheetsClient.spreadsheets.values.clear({
         spreadsheetId: this.statsSpreadsheetId,
-        range: `'${this.taxonomySheetName}'!A:C`,
+        range: `'${this.taxonomySheetName}'!A:D`,
       });
 
       await sheetsClient.spreadsheets.values.update({
@@ -902,6 +917,102 @@ export class GoogleSheetsService {
       });
 
       console.log(`Saved ${normalized.length} activity taxonomy entries`);
+    });
+  }
+
+  // ─── Activity Groups ────────────────────────────────────────────────────────
+
+  private async ensureGroupsSheetExists(tokens: OAuthTokens): Promise<void> {
+    if (!tokens || !this.statsSpreadsheetId) {
+      throw new Error('Stats spreadsheet not configured or not authenticated');
+    }
+
+    const sheets = this.getSheetsClient(tokens);
+
+    await this.retryOperation(async () => {
+      const response = await sheets.spreadsheets.get({
+        spreadsheetId: this.statsSpreadsheetId,
+      });
+
+      const existingSheets = response.data.sheets || [];
+      const sheetExists = existingSheets.some(s => s.properties?.title === this.groupsSheetName);
+
+      if (!sheetExists) {
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId: this.statsSpreadsheetId,
+          requestBody: {
+            requests: [{ addSheet: { properties: { title: this.groupsSheetName } } }],
+          },
+        });
+
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: this.statsSpreadsheetId,
+          range: `'${this.groupsSheetName}'!A1`,
+          valueInputOption: 'USER_ENTERED',
+          requestBody: { values: [['group_name']] },
+        });
+
+        console.log(`Created groups sheet: ${this.groupsSheetName}`);
+      }
+    });
+  }
+
+  async getActivityGroups(tokens: OAuthTokens): Promise<string[]> {
+    if (!tokens || !this.statsSpreadsheetId) {
+      return [];
+    }
+
+    // Ensure the sheet exists before reading
+    await this.ensureGroupsSheetExists(tokens);
+
+    const sheetsClient = this.getSheetsClient(tokens);
+
+    try {
+      const response = await sheetsClient.spreadsheets.values.get({
+        spreadsheetId: this.statsSpreadsheetId,
+        range: `'${this.groupsSheetName}'!A:A`,
+      });
+
+      const rows = response.data.values || [];
+      if (rows.length <= 1) return [];
+
+      return rows.slice(1)
+        .map((row: string[]) => (row[0] || '').toString().trim())
+        .filter((name: string) => name.length > 0)
+        .sort((a: string, b: string) => a.localeCompare(b));
+    } catch {
+      return [];
+    }
+  }
+
+  async saveActivityGroups(tokens: OAuthTokens, groups: string[]): Promise<void> {
+    if (!tokens || !this.statsSpreadsheetId) {
+      throw new Error('Stats spreadsheet not configured or not authenticated');
+    }
+
+    await this.ensureGroupsSheetExists(tokens);
+
+    const sheetsClient = this.getSheetsClient(tokens);
+
+    const deduped = Array.from(new Set(groups.map((g: string) => g.trim()).filter((g: string) => g.length > 0)))
+      .sort((a: string, b: string) => a.localeCompare(b));
+
+    const values = [['group_name'], ...deduped.map(g => [g])];
+
+    await this.retryOperation(async () => {
+      await sheetsClient.spreadsheets.values.clear({
+        spreadsheetId: this.statsSpreadsheetId,
+        range: `'${this.groupsSheetName}'!A:A`,
+      });
+
+      await sheetsClient.spreadsheets.values.update({
+        spreadsheetId: this.statsSpreadsheetId,
+        range: `'${this.groupsSheetName}'!A1`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values },
+      });
+
+      console.log(`Saved ${deduped.length} activity groups`);
     });
   }
 }

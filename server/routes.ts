@@ -146,13 +146,43 @@ export async function registerRoutes(
     } catch (error) {
       console.error('Error saving activity taxonomy:', error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          error: 'Invalid input',
-          details: error.errors,
-        });
+        return res.status(400).json({ error: 'Invalid input', details: error.errors });
       }
       res.status(500).json({
         error: 'Failed to save activity taxonomy',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  // Activity groups
+  app.get(api.activityGroups.list.path, requireAuth, async (req, res) => {
+    try {
+      const tokens = getTokensFromSession(req);
+      const groups = await googleSheetsService.getActivityGroups(tokens);
+      res.json(groups);
+    } catch (error) {
+      console.error('Error fetching activity groups:', error);
+      res.status(500).json({
+        error: 'Failed to fetch activity groups',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  app.post(api.activityGroups.save.path, requireAuth, async (req, res) => {
+    try {
+      const tokens = getTokensFromSession(req);
+      const input = api.activityGroups.save.input.parse(req.body);
+      await googleSheetsService.saveActivityGroups(tokens, input.groups);
+      res.status(200).json({ success: true });
+    } catch (error) {
+      console.error('Error saving activity groups:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid input', details: error.errors });
+      }
+      res.status(500).json({
+        error: 'Failed to save activity groups',
         message: error instanceof Error ? error.message : 'Unknown error',
       });
     }

@@ -27,10 +27,22 @@ export const api = {
         entries: z.array(
           z.object({
             activity_name: z.string().min(1),
-            group: z.string().default(""),
+            groups: z.array(z.string()).default([]),
             tags: z.array(z.string()).default([]),
+            is_background: z.boolean().default(false),
           })
         ),
+      }),
+    },
+  },
+  activityGroups: {
+    list: {
+      path: "/api/activity-groups",
+    },
+    save: {
+      path: "/api/activity-groups",
+      input: z.object({
+        groups: z.array(z.string().min(1)),
       }),
     },
   },
@@ -38,8 +50,9 @@ export const api = {
 
 export const activityTaxonomyEntrySchema = z.object({
   activity_name: z.string().min(1),
-  group: z.string().default(""),
+  groups: z.array(z.string()).default([]),
   tags: z.array(z.string()).default([]),
+  is_background: z.boolean().default(false),
 });
 
 export type ActivityTaxonomyEntry = z.infer<typeof activityTaxonomyEntrySchema>;

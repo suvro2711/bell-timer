@@ -4,8 +4,9 @@ import { api } from "@shared/routes";
 
 export interface ActivityTaxonomyEntry {
   activity_name: string;
-  group: string;
+  groups: string[];
   tags: string[];
+  is_background: boolean;
 }
 
 const UNIQUE_ACTIVITIES_URL = "/api/activity-taxonomy/activities";

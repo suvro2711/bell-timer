@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { ArrowLeft, Save, Tag } from "lucide-react";
+import { ArrowLeft, Save, Settings, Tag } from "lucide-react";
 import {
   Table,
   TableHeader,
@@ -9,30 +9,25 @@ import {
   TableRow,
   TableCell,
 } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import {
   useActivityTaxonomy,
   useSaveActivityTaxonomy,
   useUniqueActivities,
 } from "@/hooks/useActivityTaxonomy";
+import { useActivityGroups } from "@/hooks/useActivityGroups";
+import {
+  RestrictedMultiSelect,
+  CreatableMultiSelect,
+} from "@/components/ui_compound/MultiSelect";
+import ActivityGroupManager from "@/components/ActivityGroupManager";
 
 interface RowState {
-  group: string;
-  tagsInput: string;
-}
-
-function parseTags(input: string): string[] {
-  return Array.from(
-    new Set(
-      input
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter((tag) => tag.length > 0),
-    ),
-  );
+  groups: string[];
+  tags: string[];
+  is_background: boolean;
 }
 
 const ActivityManager: React.FC = () => {
@@ -43,11 +38,12 @@ const ActivityManager: React.FC = () => {
     error: activitiesError,
   } = useUniqueActivities();
   const { data: taxonomy, isLoading: taxonomyLoading } = useActivityTaxonomy();
+  const { data: availableGroups = [] } = useActivityGroups();
   const saveMutation = useSaveActivityTaxonomy();
 
   const [rows, setRows] = useState<Record<string, RowState>>({});
+  const [groupManagerOpen, setGroupManagerOpen] = useState(false);
 
-  // Merge unique activities (from logged data) with any persisted mappings.
   const activityNames = useMemo(() => {
     const names = new Set<string>();
     (uniqueActivities ?? []).forEach((name) => names.add(name));
@@ -55,7 +51,6 @@ const ActivityManager: React.FC = () => {
     return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [uniqueActivities, taxonomy]);
 
-  // Initialise editable row state once data has loaded.
   useEffect(() => {
     if (activitiesLoading || taxonomyLoading) return;
 
@@ -67,33 +62,24 @@ const ActivityManager: React.FC = () => {
     activityNames.forEach((name) => {
       const saved = taxonomyMap.get(name);
       nextRows[name] = {
-        group: saved?.group ?? "",
-        tagsInput: (saved?.tags ?? []).join(", "),
+        groups: saved?.groups ?? [],
+        tags: saved?.tags ?? [],
+        is_background: saved?.is_background ?? false,
       };
     });
     setRows(nextRows);
   }, [activityNames, taxonomy, activitiesLoading, taxonomyLoading]);
 
-  const knownGroups = useMemo(() => {
-    const groups = new Set<string>();
-    Object.values(rows).forEach((row) => {
-      if (row.group.trim()) groups.add(row.group.trim());
-    });
-    return Array.from(groups).sort((a, b) => a.localeCompare(b));
-  }, [rows]);
-
   const updateRow = (name: string, patch: Partial<RowState>) => {
-    setRows((prev) => ({
-      ...prev,
-      [name]: { ...prev[name], ...patch },
-    }));
+    setRows((prev) => ({ ...prev, [name]: { ...prev[name], ...patch } }));
   };
 
   const handleSave = async () => {
     const entries = activityNames.map((name) => ({
       activity_name: name,
-      group: (rows[name]?.group ?? "").trim(),
-      tags: parseTags(rows[name]?.tagsInput ?? ""),
+      groups: rows[name]?.groups ?? [],
+      tags: rows[name]?.tags ?? [],
+      is_background: rows[name]?.is_background ?? false,
     }));
 
     try {
@@ -111,7 +97,7 @@ const ActivityManager: React.FC = () => {
   const isLoading = activitiesLoading || taxonomyLoading;
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <Link href="/">
@@ -124,82 +110,101 @@ const ActivityManager: React.FC = () => {
               <Tag className="w-6 h-6" /> Activity Manager
             </h1>
             <p className="text-sm text-muted-foreground">
-              Group and tag your unique activities. Saved to your workbook.
+              Assign groups and tags to activities. Saved to your workbook.
             </p>
           </div>
         </div>
-        <Button onClick={handleSave} disabled={saveMutation.isPending || isLoading} data-testid="save-button">
-          <Save className="w-4 h-4 mr-2" />
-          {saveMutation.isPending ? "Saving..." : "Save"}
-        </Button>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setGroupManagerOpen(true)}
+            data-testid="manage-groups-button"
+          >
+            <Settings className="w-4 h-4 mr-2" />
+            Manage Groups
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={saveMutation.isPending || isLoading}
+            data-testid="save-button"
+          >
+            <Save className="w-4 h-4 mr-2" />
+            {saveMutation.isPending ? "Saving…" : "Save"}
+          </Button>
+        </div>
       </div>
 
       {activitiesError && (
         <div className="text-red-500 mb-4" data-testid="activities-error">
-          Failed to load activities: {activitiesError instanceof Error ? activitiesError.message : "Unknown error"}
+          Failed to load activities:{" "}
+          {activitiesError instanceof Error ? activitiesError.message : "Unknown error"}
         </div>
       )}
 
       {isLoading ? (
-        <div className="text-muted-foreground" data-testid="activities-loading">Loading activities...</div>
+        <div className="text-muted-foreground" data-testid="activities-loading">
+          Loading activities…
+        </div>
       ) : activityNames.length === 0 ? (
-        <div className="text-muted-foreground" data-testid="activities-empty">No activities found in your logged data yet.</div>
+        <div className="text-muted-foreground" data-testid="activities-empty">
+          No activities found in your logged data yet.
+        </div>
       ) : (
-        <>
-          {knownGroups.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-4">
-              <span className="text-sm text-muted-foreground">Groups:</span>
-              {knownGroups.map((group) => (
-                <Badge key={group} variant="secondary">
-                  {group}
-                </Badge>
-              ))}
-            </div>
-          )}
-
-          <datalist id="known-groups">
-            {knownGroups.map((group) => (
-              <option key={group} value={group} />
-            ))}
-          </datalist>
-
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-1/3">Activity</TableHead>
-                <TableHead className="w-1/4">Group</TableHead>
-                <TableHead>Tags (comma separated)</TableHead>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-1/4">Activity</TableHead>
+              <TableHead className="w-1/3">Groups</TableHead>
+              <TableHead className="w-1/3">Tags</TableHead>
+              <TableHead className="w-16 text-center">Background</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {activityNames.map((name) => (
+              <TableRow key={name} data-testid={`activity-row-${name}`}>
+                <TableCell className="font-medium align-top pt-3">{name}</TableCell>
+                <TableCell className="align-top" data-testid={`groups-select-${name}`}>
+                  <RestrictedMultiSelect
+                    options={availableGroups}
+                    value={rows[name]?.groups ?? []}
+                    onChange={(vals) => updateRow(name, { groups: vals })}
+                    inputId={`groups-input-${name}`}
+                    placeholder="Select groups…"
+                  />
+                </TableCell>
+                <TableCell className="align-top" data-testid={`tags-select-${name}`}>
+                  <CreatableMultiSelect
+                    value={rows[name]?.tags ?? []}
+                    onChange={(vals) => updateRow(name, { tags: vals })}
+                    inputId={`tags-input-${name}`}
+                    placeholder="Type to add tags…"
+                  />
+                </TableCell>
+                <TableCell className="text-center align-top pt-3">
+                  <Checkbox
+                    checked={rows[name]?.is_background ?? false}
+                    onCheckedChange={(checked) =>
+                      updateRow(name, { is_background: checked === true })
+                    }
+                    aria-label={`${name} can run in background`}
+                    data-testid={`background-checkbox-${name}`}
+                  />
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {activityNames.map((name) => (
-                <TableRow key={name} data-testid={`activity-row-${name}`}>
-                  <TableCell className="font-medium">{name}</TableCell>
-                  <TableCell>
-                    <Input
-                      list="known-groups"
-                      placeholder="e.g. Work"
-                      data-testid={`group-input-${name}`}
-                      value={rows[name]?.group ?? ""}
-                      onChange={(e) => updateRow(name, { group: e.target.value })}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      placeholder="e.g. focus, billable"
-                      data-testid={`tags-input-${name}`}
-                      value={rows[name]?.tagsInput ?? ""}
-                      onChange={(e) => updateRow(name, { tagsInput: e.target.value })}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </>
+            ))}
+          </TableBody>
+        </Table>
       )}
+
+      <ActivityGroupManager
+        open={groupManagerOpen}
+        onOpenChange={setGroupManagerOpen}
+        currentGroups={availableGroups}
+      />
     </div>
   );
 };
 
 export default ActivityManager;
+
