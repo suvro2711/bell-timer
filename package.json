@@ -1,5 +1,5 @@
 {
-  "name": "rest-express",
+  "name": "my-dashboard",
   "version": "3.0.0",
   "type": "module",
   "license": "MIT",
@@ -7,7 +7,10 @@
     "dev": "cross-env NODE_ENV=development tsx server/index.ts",
     "build": "tsx script/build.ts",
     "start": "cross-env NODE_ENV=production node dist/index.cjs",
-    "check": "tsc"
+    "check": "tsc",
+    "cypress:open": "cypress open",
+    "component": "cypress run --component --browser chrome",
+    "e2e": "start-server-and-test dev http://localhost:5000 \"cypress run --e2e --browser chrome\""
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -94,8 +97,10 @@
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.4.20",
+    "cypress": "^15.17.0",
     "esbuild": "^0.25.0",
     "postcss": "^8.4.47",
+    "start-server-and-test": "^3.0.11",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.20.5",
     "typescript": "5.6.3",

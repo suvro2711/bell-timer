@@ -1,4 +1,4 @@
-# Google Sheets Integration for Bell Timer (OAuth)
+# Google Sheets Integration for My Dashboard (OAuth)
 
 ## Setup Instructions
 
@@ -15,7 +15,7 @@
 
 1. Go to "APIs & Services" → "OAuth consent screen"
 2. Choose **External** (or **Internal** if using Google Workspace)
-3. Fill in the app name (e.g., "Bell Timer")
+3. Fill in the app name (e.g., "My Dashboard")
 4. Add your email as a test user
 5. Add the following scopes:
    - `https://www.googleapis.com/auth/spreadsheets`
@@ -28,7 +28,7 @@
 2. Click "Create Credentials" → "OAuth client ID"
 3. Choose **Web application**
 4. Set:
-   - **Name**: Bell Timer
+   - **Name**: My Dashboard
    - **Authorized redirect URIs**: `http://localhost:5000/api/auth/google/callback`
    - For production, add your production URL too (e.g., `https://yourdomain.com/api/auth/google/callback`)
 5. Click "Create"

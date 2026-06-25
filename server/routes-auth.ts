@@ -90,8 +90,15 @@ export function registerAuthRoutes(app: Express) {
 
       console.log(`User authenticated: ${userInfo.email}`);
 
-      // Redirect to the app
-      res.redirect('/');
+      // Explicitly save the session before redirecting
+      req.session.save((err) => {
+        if (err) {
+          console.error('Session save error:', err);
+          return res.status(500).send('Authentication failed while saving session.');
+        }
+        // Redirect to the app
+        res.redirect('/');
+      });
     } catch (error) {
       console.error('OAuth callback error:', error);
       res.status(500).send('Authentication failed. Please try again.');

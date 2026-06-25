@@ -108,6 +108,56 @@ export async function registerRoutes(
     }
   });
 
+  // Activity taxonomy: unique activities + their group/tag mappings
+  app.get('/api/activity-taxonomy/activities', requireAuth, async (req, res) => {
+    try {
+      const tokens = getTokensFromSession(req);
+      const activities = await googleSheetsService.getUniqueActivities(tokens);
+      res.json(activities);
+    } catch (error) {
+      console.error('Error fetching unique activities:', error);
+      res.status(500).json({
+        error: 'Failed to fetch unique activities',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  app.get(api.activityTaxonomy.list.path, requireAuth, async (req, res) => {
+    try {
+      const tokens = getTokensFromSession(req);
+      const taxonomy = await googleSheetsService.getActivityTaxonomy(tokens);
+      res.json(taxonomy);
+    } catch (error) {
+      console.error('Error fetching activity taxonomy:', error);
+      res.status(500).json({
+        error: 'Failed to fetch activity taxonomy',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  app.post(api.activityTaxonomy.save.path, requireAuth, async (req, res) => {
+    try {
+      const tokens = getTokensFromSession(req);
+      const input = api.activityTaxonomy.save.input.parse(req.body);
+      await googleSheetsService.saveActivityTaxonomy(tokens, input.entries);
+      res.status(200).json({ success: true });
+    } catch (error) {
+      console.error('Error saving activity taxonomy:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          error: 'Invalid input',
+          details: error.errors,
+        });
+      }
+      res.status(500).json({
+        error: 'Failed to save activity taxonomy',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
   // Generic endpoint to fetch data from any spreadsheet/sheet
   app.get('/api/sheets/:spreadsheetId/:sheetName', requireAuth, async (req, res) => {
     try {

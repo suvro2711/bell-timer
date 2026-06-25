@@ -19,7 +19,7 @@ export default function LoginPage() {
       <div className="bg-gray-800 rounded-2xl shadow-xl p-8 max-w-sm w-full mx-4 text-center">
         <div className="mb-6">
           <div className="text-5xl mb-4">🔔</div>
-          <h1 className="text-2xl font-bold text-white mb-2">Bell Timer</h1>
+          <h1 className="text-2xl font-bold text-white mb-2">My Dashboard</h1>
           <p className="text-gray-400 text-sm">
             Sign in with your Google account to sync your timer sessions with Google Sheets.
           </p>

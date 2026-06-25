@@ -1,4 +1,4 @@
-# Vercel Deployment Guide for Bell-Timer
+# Vercel Deployment Guide for My Dashboard
 
 ## Prerequisites
 1. Vercel account (sign up at vercel.com)
@@ -25,7 +25,7 @@ NODE_ENV=production
    ```
 
 2. Go to [vercel.com/new](https://vercel.com/new)
-3. Import your GitHub repository `suvro2711/Bell-Timer`
+3. Import your GitHub repository `suvro2711/my-dashboard`
 4. Vercel will auto-detect the configuration
 5. Add environment variables (see above)
 6. Click "Deploy"
@@ -38,7 +38,7 @@ vercel
 ```
 
 ## Post-Deployment
-- Your app will be live at: `https://bell-timer-<unique-id>.vercel.app`
+- Your app will be live at: `https://my-dashboard-<unique-id>.vercel.app`
 - API endpoints: `https://your-app.vercel.app/api/sessions`
 - Custom domain: Configure in Vercel Dashboard → Domains
 

@@ -23,6 +23,7 @@ export class GoogleSheetsService {
   private readonly spreadsheetId: string;
   private readonly statsSpreadsheetId: string;
   private readonly niharikaSpreadsheetId: string;
+  private readonly taxonomySheetName = 'ActivityTaxonomy';
   private initializationSuccessful = false;
 
   constructor() {
@@ -752,6 +753,156 @@ export class GoogleSheetsService {
       console.error(`Error fetching sheet data:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Returns the unique activity names logged across all monthly sheets in the
+   * stats workbook (the same workbook used to save activity data).
+   */
+  async getUniqueActivities(tokens: OAuthTokens): Promise<string[]> {
+    const activities = await this.getActivityData(tokens);
+    const unique = new Set<string>();
+
+    for (const activity of activities) {
+      const name = typeof activity?.activityType === 'string' ? activity.activityType.trim() : '';
+      if (name) unique.add(name);
+    }
+
+    return Array.from(unique).sort((a, b) => a.localeCompare(b));
+  }
+
+  /**
+   * Ensures the ActivityTaxonomy sheet (with headers) exists in the stats workbook.
+   */
+  private async ensureTaxonomySheetExists(tokens: OAuthTokens): Promise<void> {
+    if (!tokens || !this.statsSpreadsheetId) {
+      throw new Error('Stats spreadsheet not configured or not authenticated');
+    }
+
+    const sheets = this.getSheetsClient(tokens);
+
+    await this.retryOperation(async () => {
+      const response = await sheets.spreadsheets.get({
+        spreadsheetId: this.statsSpreadsheetId,
+      });
+
+      const existingSheets = response.data.sheets || [];
+      const sheetExists = existingSheets.some(s => s.properties?.title === this.taxonomySheetName);
+
+      if (!sheetExists) {
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId: this.statsSpreadsheetId,
+          requestBody: {
+            requests: [{ addSheet: { properties: { title: this.taxonomySheetName } } }],
+          },
+        });
+
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: this.statsSpreadsheetId,
+          range: `'${this.taxonomySheetName}'!A1:C1`,
+          valueInputOption: 'USER_ENTERED',
+          requestBody: {
+            values: [['activity_name', 'group', 'tags_csv']],
+          },
+        });
+
+        console.log(`Created taxonomy sheet: ${this.taxonomySheetName}`);
+      }
+    });
+  }
+
+  /**
+   * Reads the saved activity group/tag mappings from the ActivityTaxonomy sheet.
+   */
+  async getActivityTaxonomy(tokens: OAuthTokens): Promise<Array<{ activity_name: string; group: string; tags: string[] }>> {
+    if (!tokens || !this.statsSpreadsheetId) {
+      console.log('Stats spreadsheet not configured or not authenticated');
+      return [];
+    }
+
+    const sheetsClient = this.getSheetsClient(tokens);
+
+    try {
+      const response = await sheetsClient.spreadsheets.values.get({
+        spreadsheetId: this.statsSpreadsheetId,
+        range: `'${this.taxonomySheetName}'!A:C`,
+      });
+
+      const rows = response.data.values || [];
+      if (rows.length <= 1) return [];
+
+      const headers = (rows[0] || []).map((h: string) => (h || '').toString().trim().toLowerCase());
+      const nameIdx = headers.indexOf('activity_name');
+      const groupIdx = headers.indexOf('group');
+      const tagsIdx = headers.indexOf('tags_csv');
+
+      return rows.slice(1).reduce<Array<{ activity_name: string; group: string; tags: string[] }>>((acc, row) => {
+        const activity_name = ((nameIdx >= 0 ? row[nameIdx] : row[0]) || '').toString().trim();
+        if (!activity_name) return acc;
+
+        const group = ((groupIdx >= 0 ? row[groupIdx] : row[1]) || '').toString().trim();
+        const tagsCsv = ((tagsIdx >= 0 ? row[tagsIdx] : row[2]) || '').toString();
+        const tags = tagsCsv
+          .split(',')
+          .map((tag: string) => tag.trim())
+          .filter((tag: string) => tag.length > 0);
+
+        acc.push({ activity_name, group, tags });
+        return acc;
+      }, []);
+    } catch (error) {
+      // Sheet likely does not exist yet — treat as empty.
+      console.warn('Error fetching activity taxonomy (treating as empty):', error instanceof Error ? error.message : error);
+      return [];
+    }
+  }
+
+  /**
+   * Overwrites the ActivityTaxonomy sheet with the provided mappings.
+   */
+  async saveActivityTaxonomy(
+    tokens: OAuthTokens,
+    entries: Array<{ activity_name: string; group: string; tags: string[] }>,
+  ): Promise<void> {
+    if (!tokens || !this.statsSpreadsheetId) {
+      throw new Error('Stats spreadsheet not configured or not authenticated');
+    }
+
+    await this.ensureTaxonomySheetExists(tokens);
+
+    const sheetsClient = this.getSheetsClient(tokens);
+
+    const normalized = entries
+      .map(entry => {
+        const activity_name = (entry.activity_name || '').trim();
+        const group = (entry.group || '').trim();
+        const tags = Array.from(
+          new Set((entry.tags || []).map(tag => tag.trim()).filter(tag => tag.length > 0)),
+        );
+        return { activity_name, group, tags };
+      })
+      .filter(entry => entry.activity_name.length > 0);
+
+    const values = [
+      ['activity_name', 'group', 'tags_csv'],
+      ...normalized.map(entry => [entry.activity_name, entry.group, entry.tags.join(', ')]),
+    ];
+
+    await this.retryOperation(async () => {
+      await sheetsClient.spreadsheets.values.clear({
+        spreadsheetId: this.statsSpreadsheetId,
+        range: `'${this.taxonomySheetName}'!A:C`,
+      });
+
+      await sheetsClient.spreadsheets.values.update({
+        spreadsheetId: this.statsSpreadsheetId,
+        range: `'${this.taxonomySheetName}'!A1`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values },
+      });
+
+      console.log(`Saved ${normalized.length} activity taxonomy entries`);
+    });
   }
 }
 

@@ -27,18 +27,21 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
+// Trust the first proxy so that secure cookies are properly set when behind a reverse proxy (e.g., Vercel, Render, etc.)
+app.set("trust proxy", 1);
+
 // Session middleware for OAuth tokens
 const MemoryStore = createMemoryStore(session);
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || 'bell-timer-dev-secret',
+    secret: process.env.SESSION_SECRET || 'my-dashboard-dev-secret',
     resave: false,
     saveUninitialized: false,
     store: new MemoryStore({
       checkPeriod: 86400000, // prune expired entries every 24h
     }),
     cookie: {
-      secure: process.env.NODE_ENV === 'production',
+      secure: false, // Ensure cookies work across all dev/local proxy scenarios
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       sameSite: 'lax',
@@ -92,6 +95,13 @@ app.use((req, res, next) => {
 
     res.status(status).json({ message });
     throw err;
+  });
+
+  // Specifically handle service-worker.js so that it consistently returns a 404
+  // instead of falling back to the SPA index.html. This is crucial for
+  // breaking the PWA lock on clients that still have the old service worker cached.
+  app.get("/service-worker.js", (_req, res) => {
+    res.status(404).send("Service worker uninstalled.");
   });
 
   // importantly only setup vite in development and after
