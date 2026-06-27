@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { ArrowLeft, Save, Settings, Tag } from "lucide-react";
 import {
   Table,
@@ -22,7 +22,6 @@ import {
   RestrictedMultiSelect,
   CreatableMultiSelect,
 } from "@/components/ui_compound/MultiSelect";
-import ActivityGroupManager from "@/components/ActivityGroupManager";
 
 interface RowState {
   groups: string[];
@@ -32,17 +31,22 @@ interface RowState {
 
 const ActivityManager: React.FC = () => {
   const { toast } = useToast();
+  const [, navigate] = useLocation();
   const {
     data: uniqueActivities,
     isLoading: activitiesLoading,
     error: activitiesError,
   } = useUniqueActivities();
   const { data: taxonomy, isLoading: taxonomyLoading } = useActivityTaxonomy();
-  const { data: availableGroups = [] } = useActivityGroups();
+  const { data: groupsData = [] } = useActivityGroups();
   const saveMutation = useSaveActivityTaxonomy();
 
+  const availableGroups = useMemo(
+    () => groupsData.map((g) => g.name).sort((a, b) => a.localeCompare(b)),
+    [groupsData],
+  );
+
   const [rows, setRows] = useState<Record<string, RowState>>({});
-  const [groupManagerOpen, setGroupManagerOpen] = useState(false);
 
   const activityNames = useMemo(() => {
     const names = new Set<string>();
@@ -118,7 +122,7 @@ const ActivityManager: React.FC = () => {
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            onClick={() => setGroupManagerOpen(true)}
+            onClick={() => navigate("/activity-groups")}
             data-testid="manage-groups-button"
           >
             <Settings className="w-4 h-4 mr-2" />
@@ -196,12 +200,6 @@ const ActivityManager: React.FC = () => {
           </TableBody>
         </Table>
       )}
-
-      <ActivityGroupManager
-        open={groupManagerOpen}
-        onOpenChange={setGroupManagerOpen}
-        currentGroups={availableGroups}
-      />
     </div>
   );
 };

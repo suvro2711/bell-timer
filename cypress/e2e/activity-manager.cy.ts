@@ -158,45 +158,19 @@ describe("Activity Manager page", () => {
     cy.contains("h1", "Activity Manager").should("be.visible");
   });
 
-  it("opens the Group Manager modal, adds a group, and POSTs to save", () => {
+  it("navigates to the Activity Groups page via Manage Groups", () => {
     cy.intercept("GET", ACTIVITIES_URL, { statusCode: 200, body: ["Deep Work"] }).as(
       "uniqueActivities",
     );
     cy.intercept("GET", TAXONOMY_URL, { statusCode: 200, body: [] }).as("taxonomy");
-    cy.intercept("POST", GROUPS_URL, { statusCode: 200, body: { success: true } }).as("saveGroups");
 
     cy.visit("/activity-manager");
     cy.wait(["@uniqueActivities", "@taxonomy", "@groups"]);
 
     cy.get('[data-testid="manage-groups-button"]').click();
-    cy.get('[data-testid="group-manager-dialog"]').should("be.visible");
 
-    cy.get('[data-testid="new-group-input"]').type("Learning");
-    cy.get('[data-testid="add-group-button"]').click();
-    cy.get('[data-testid="group-item-Learning"]').should("exist");
-
-    cy.get('[data-testid="save-groups-button"]').click();
-    cy.wait("@saveGroups").its("request.body.groups").should("include", "Learning");
-  });
-
-  it("removes a group in the Group Manager modal before saving", () => {
-    cy.intercept("GET", ACTIVITIES_URL, { statusCode: 200, body: [] }).as("uniqueActivities");
-    cy.intercept("GET", TAXONOMY_URL, { statusCode: 200, body: [] }).as("taxonomy");
-    cy.intercept("POST", GROUPS_URL, { statusCode: 200, body: { success: true } }).as("saveGroups");
-
-    cy.visit("/activity-manager");
-    cy.wait(["@uniqueActivities", "@taxonomy", "@groups"]);
-
-    cy.get('[data-testid="manage-groups-button"]').click();
-    cy.get('[data-testid="group-item-Work"]').should("exist");
-
-    cy.get('[data-testid="remove-group-Work"]').click();
-    cy.get('[data-testid="group-item-Work"]').should("not.exist");
-
-    cy.get('[data-testid="save-groups-button"]').click();
-    cy.wait("@saveGroups")
-      .its("request.body.groups")
-      .should("not.include", "Work");
+    cy.location("pathname").should("eq", "/activity-groups");
+    cy.contains("h1", "Activity Groups").should("be.visible");
   });
 });
 

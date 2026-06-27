@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation } from "wouter";
-import { Menu, X, Home, History, Settings, Info, LogOut, Heart, Tag } from "lucide-react";
+import { Menu, X, Home, History, Settings, Info, LogOut, Heart, Tag, FolderTree } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -15,6 +15,7 @@ export function HamburgerMenu() {
     { path: "/history", label: "History", icon: History },
     { path: "/activities", label: "Activities", icon: History },
     { path: "/activity-manager", label: "Activity Manager", icon: Tag },
+    { path: "/activity-groups", label: "Activity Groups", icon: FolderTree },
     { path: "/niharika", label: "Niharika", icon: Heart },
     { path: "/analysis", label: "Analysis", icon: Info },
     { path: "/settings", label: "Settings", icon: Settings },

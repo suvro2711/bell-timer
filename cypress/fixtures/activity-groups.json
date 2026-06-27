@@ -1,1 +1,6 @@
-["Work", "Fitness", "Personal"]
+[
+  { "name": "Work", "parent": null },
+  { "name": "Deep Work", "parent": "Work" },
+  { "name": "Fitness", "parent": null },
+  { "name": "Personal", "parent": null }
+]

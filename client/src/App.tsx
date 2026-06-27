@@ -11,6 +11,7 @@ import NotFound from "@/pages/not-found";
 import StatisticsPage from "./pages/Statistics";
 import Activities from "./pages/Activities";
 import ActivityManager from "./pages/ActivityManager";
+import ActivityGroups from "./pages/ActivityGroups";
 import LoginPage from "./pages/Login";
 import NiharikaPage from "./pages/Niharika";
 import { useAuth } from "./hooks/use-auth";
@@ -23,6 +24,7 @@ function Router() {
       <Route path="/analysis" component={StatisticsPage} />
       <Route path="/activities" component={Activities} />
       <Route path="/activity-manager" component={ActivityManager} />
+      <Route path="/activity-groups" component={ActivityGroups} />
       <Route path="/niharika" component={NiharikaPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/about" component={AboutPage} />

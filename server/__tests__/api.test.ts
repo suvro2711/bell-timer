@@ -39,6 +39,7 @@ vi.mock("../google-sheets", () => ({
 
 import { googleSheetsService } from "../google-sheets";
 import { createApp } from "../createApp";
+import { api } from "@shared/routes";
 
 let app: Express;
 
@@ -57,12 +58,17 @@ beforeEach(() => {
 
 describe("GET /api/activity-groups", () => {
   it("returns 200 with the list from the service", async () => {
-    vi.mocked(googleSheetsService.getActivityGroups).mockResolvedValueOnce(["Work", "Fitness", "Personal"]);
+    const nodes = [
+      { name: "Work", parent: null },
+      { name: "Deep Work", parent: "Work" },
+      { name: "Fitness", parent: null },
+    ];
+    vi.mocked(googleSheetsService.getActivityGroups).mockResolvedValueOnce(nodes);
 
     const res = await request(app).get("/api/activity-groups");
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual(["Work", "Fitness", "Personal"]);
+    expect(res.body).toEqual(nodes);
     expect(googleSheetsService.getActivityGroups).toHaveBeenCalledOnce();
   });
 
@@ -89,15 +95,33 @@ describe("POST /api/activity-groups", () => {
   it("returns 200 and calls the service with the provided groups", async () => {
     vi.mocked(googleSheetsService.saveActivityGroups).mockResolvedValueOnce(undefined);
 
+    const groups = [
+      { name: "Work", parent: null },
+      { name: "Deep Work", parent: "Work" },
+    ];
     const res = await request(app)
       .post("/api/activity-groups")
-      .send({ groups: ["Work", "Fitness"] });
+      .send({ groups });
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ success: true });
     expect(googleSheetsService.saveActivityGroups).toHaveBeenCalledWith(
       expect.any(Object),
-      ["Work", "Fitness"],
+      groups,
+    );
+  });
+
+  it("defaults a missing parent to null", async () => {
+    vi.mocked(googleSheetsService.saveActivityGroups).mockResolvedValueOnce(undefined);
+
+    const res = await request(app)
+      .post("/api/activity-groups")
+      .send({ groups: [{ name: "Work" }] });
+
+    expect(res.status).toBe(200);
+    expect(googleSheetsService.saveActivityGroups).toHaveBeenCalledWith(
+      expect.any(Object),
+      [{ name: "Work", parent: null }],
     );
   });
 
@@ -117,10 +141,10 @@ describe("POST /api/activity-groups", () => {
     expect(googleSheetsService.saveActivityGroups).not.toHaveBeenCalled();
   });
 
-  it("returns 400 when groups contains an empty string (Zod min(1))", async () => {
+  it("returns 400 when a group has an empty name (Zod min(1))", async () => {
     const res = await request(app)
       .post("/api/activity-groups")
-      .send({ groups: ["Work", ""] });
+      .send({ groups: [{ name: "Work", parent: null }, { name: "", parent: null }] });
 
     expect(res.status).toBe(400);
     expect(googleSheetsService.saveActivityGroups).not.toHaveBeenCalled();
@@ -139,7 +163,7 @@ describe("POST /api/activity-groups", () => {
 
     const res = await request(app)
       .post("/api/activity-groups")
-      .send({ groups: ["Work"] });
+      .send({ groups: [{ name: "Work", parent: null }] });
 
     expect(res.status).toBe(500);
     expect(res.body.message).toBe("Write failed");
@@ -269,5 +293,65 @@ describe("POST /api/activity-taxonomy", () => {
 
     expect(res.status).toBe(500);
     expect(res.body.message).toBe("Quota exceeded");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Client-payload contract – guards against client↔server schema drift.
+//
+// These tests parse the exact payload shape the client sends against the REAL
+// Zod schema.  They will turn red the instant someone changes the schema or
+// the client payload without updating the other side.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("Client-payload contract – POST /api/activity-groups", () => {
+  it("GroupNode[] (objects with name+parent) is accepted by the server schema", () => {
+    const payload = {
+      groups: [
+        { name: "Work", parent: null },
+        { name: "Deep Work", parent: "Work" },
+        { name: "Fitness", parent: null },
+      ],
+    };
+    const result = api.activityGroups.save.input.safeParse(payload);
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an array of plain strings (regression guard: schema expects objects, not strings)", () => {
+    // This is the exact failure mode that caused the production 400 error:
+    // a stale server still validated groups as z.array(z.string()) while the
+    // client sent GroupNode objects.  This test catches that drift instantly.
+    const result = api.activityGroups.save.input.safeParse({
+      groups: ["Work", "Deep Work"],
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.errors[0]).toMatchObject({
+      code: "invalid_type",
+      expected: "object",
+      received: "string",
+    });
+  });
+
+  it("defaults parent to null when the field is omitted", () => {
+    const result = api.activityGroups.save.input.safeParse({
+      groups: [{ name: "Work" }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.groups[0].parent).toBe(null);
+    }
+  });
+
+  it("rejects a group with an empty name", () => {
+    const result = api.activityGroups.save.input.safeParse({
+      groups: [{ name: "", parent: null }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a group object missing the name field entirely", () => {
+    const result = api.activityGroups.save.input.safeParse({
+      groups: [{ parent: null }],
+    });
+    expect(result.success).toBe(false);
   });
 });

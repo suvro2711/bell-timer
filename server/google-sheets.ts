@@ -3,6 +3,7 @@ dotenv.config();
 import { sheets_v4 } from 'googleapis';
 import { z } from 'zod';
 import { googleOAuthService, OAuthTokens } from './google-oauth';
+import type { GroupNode } from '@shared/routes';
 
 // Schema for session data to be sent to Google Sheets
 export const googleSheetsSessionSchema = z.object({
@@ -947,9 +948,9 @@ export class GoogleSheetsService {
 
         await sheets.spreadsheets.values.update({
           spreadsheetId: this.statsSpreadsheetId,
-          range: `'${this.groupsSheetName}'!A1`,
+          range: `'${this.groupsSheetName}'!A1:B1`,
           valueInputOption: 'USER_ENTERED',
-          requestBody: { values: [['group_name']] },
+          requestBody: { values: [['group_name', 'parent_group']] },
         });
 
         console.log(`Created groups sheet: ${this.groupsSheetName}`);
@@ -957,7 +958,7 @@ export class GoogleSheetsService {
     });
   }
 
-  async getActivityGroups(tokens: OAuthTokens): Promise<string[]> {
+  async getActivityGroups(tokens: OAuthTokens): Promise<GroupNode[]> {
     if (!tokens || !this.statsSpreadsheetId) {
       return [];
     }
@@ -970,22 +971,35 @@ export class GoogleSheetsService {
     try {
       const response = await sheetsClient.spreadsheets.values.get({
         spreadsheetId: this.statsSpreadsheetId,
-        range: `'${this.groupsSheetName}'!A:A`,
+        range: `'${this.groupsSheetName}'!A:B`,
       });
 
       const rows = response.data.values || [];
       if (rows.length <= 1) return [];
 
+      // Build the set of known group names first so we can validate parents.
+      const names = new Set(
+        rows.slice(1)
+          .map((row: string[]) => (row[0] || '').toString().trim())
+          .filter((name: string) => name.length > 0)
+      );
+
       return rows.slice(1)
-        .map((row: string[]) => (row[0] || '').toString().trim())
-        .filter((name: string) => name.length > 0)
-        .sort((a: string, b: string) => a.localeCompare(b));
+        .map((row: string[]) => {
+          const name = (row[0] || '').toString().trim();
+          const parentRaw = (row[1] || '').toString().trim();
+          // Drop dangling parents (parent no longer exists) → treat as top-level.
+          const parent = parentRaw && names.has(parentRaw) ? parentRaw : null;
+          return { name, parent };
+        })
+        .filter((g: GroupNode) => g.name.length > 0)
+        .sort((a: GroupNode, b: GroupNode) => a.name.localeCompare(b.name));
     } catch {
       return [];
     }
   }
 
-  async saveActivityGroups(tokens: OAuthTokens, groups: string[]): Promise<void> {
+  async saveActivityGroups(tokens: OAuthTokens, groups: GroupNode[]): Promise<void> {
     if (!tokens || !this.statsSpreadsheetId) {
       throw new Error('Stats spreadsheet not configured or not authenticated');
     }
@@ -994,15 +1008,30 @@ export class GoogleSheetsService {
 
     const sheetsClient = this.getSheetsClient(tokens);
 
-    const deduped = Array.from(new Set(groups.map((g: string) => g.trim()).filter((g: string) => g.length > 0)))
-      .sort((a: string, b: string) => a.localeCompare(b));
+    // Dedupe by name (case-sensitive on the trimmed value), keeping the last parent seen.
+    const byName = new Map<string, string | null>();
+    for (const g of groups) {
+      const name = (g.name || '').toString().trim();
+      if (!name) continue;
+      const parent = g.parent ? g.parent.toString().trim() : '';
+      byName.set(name, parent.length > 0 ? parent : null);
+    }
 
-    const values = [['group_name'], ...deduped.map(g => [g])];
+    // Drop parents that don't reference an existing group.
+    const names = new Set(byName.keys());
+    const deduped = Array.from(byName.entries())
+      .map(([name, parent]) => ({ name, parent: parent && names.has(parent) ? parent : null }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const values = [
+      ['group_name', 'parent_group'],
+      ...deduped.map(g => [g.name, g.parent ?? '']),
+    ];
 
     await this.retryOperation(async () => {
       await sheetsClient.spreadsheets.values.clear({
         spreadsheetId: this.statsSpreadsheetId,
-        range: `'${this.groupsSheetName}'!A:A`,
+        range: `'${this.groupsSheetName}'!A:B`,
       });
 
       await sheetsClient.spreadsheets.values.update({

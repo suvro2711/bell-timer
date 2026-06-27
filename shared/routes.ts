@@ -42,7 +42,12 @@ export const api = {
     save: {
       path: "/api/activity-groups",
       input: z.object({
-        groups: z.array(z.string().min(1)),
+        groups: z.array(
+          z.object({
+            name: z.string().min(1),
+            parent: z.string().nullable().default(null),
+          })
+        ),
       }),
     },
   },
@@ -56,3 +61,10 @@ export const activityTaxonomyEntrySchema = z.object({
 });
 
 export type ActivityTaxonomyEntry = z.infer<typeof activityTaxonomyEntrySchema>;
+
+export const groupNodeSchema = z.object({
+  name: z.string().min(1),
+  parent: z.string().nullable().default(null),
+});
+
+export type GroupNode = z.infer<typeof groupNodeSchema>;

@@ -4,14 +4,15 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "cross-env NODE_ENV=development tsx server/index.ts",
+    "dev": "cross-env NODE_ENV=development tsx watch server/index.ts",
     "build": "tsx script/build.ts",
     "start": "cross-env NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
     "test:api": "vitest run --config vitest.config.ts",
     "cypress:open": "cypress open",
     "component": "cypress run --component --browser chrome",
-    "e2e": "start-server-and-test dev http://localhost:5000 \"cypress run --e2e --browser chrome\""
+    "e2e": "start-server-and-test dev http://localhost:5000 \"cypress run --e2e --browser chrome\"",
+    "e2e:real": "cross-env CYPRESS_REAL_E2E=1 cypress open --e2e"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -47,6 +48,7 @@
     "@radix-ui/react-toggle-group": "^1.1.3",
     "@radix-ui/react-tooltip": "^1.2.0",
     "@tanstack/react-query": "^5.60.5",
+    "@tanstack/react-table": "^8.21.3",
     "@types/react-select": "^5.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

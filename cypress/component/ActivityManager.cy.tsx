@@ -30,7 +30,13 @@ describe("ActivityManager component", () => {
       "uniqueActivities",
     );
     cy.intercept("GET", TAXONOMY_URL, { statusCode: 200, body: [] }).as("taxonomy");
-    cy.intercept("GET", GROUPS_URL, { statusCode: 200, body: ["Work", "Fitness"] }).as("groups");
+    cy.intercept("GET", GROUPS_URL, {
+      statusCode: 200,
+      body: [
+        { name: "Work", parent: null },
+        { name: "Fitness", parent: null },
+      ],
+    }).as("groups");
 
     mountPage();
     cy.wait(["@uniqueActivities", "@taxonomy", "@groups"]);
@@ -44,7 +50,13 @@ describe("ActivityManager component", () => {
       "uniqueActivities",
     );
     cy.intercept("GET", TAXONOMY_URL, { statusCode: 200, body: [] }).as("taxonomy");
-    cy.intercept("GET", GROUPS_URL, { statusCode: 200, body: ["Work", "Fitness"] }).as("groups");
+    cy.intercept("GET", GROUPS_URL, {
+      statusCode: 200,
+      body: [
+        { name: "Work", parent: null },
+        { name: "Fitness", parent: null },
+      ],
+    }).as("groups");
     cy.intercept("POST", TAXONOMY_URL, { statusCode: 200, body: { success: true } }).as("save");
 
     mountPage();

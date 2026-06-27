@@ -6,6 +6,8 @@ export default defineConfig({
     baseUrl: "http://localhost:5000",
     supportFile: "cypress/support/e2e.ts",
     specPattern: "cypress/e2e/**/*.cy.{ts,tsx}",
+    excludeSpecPattern: "cypress/e2e/**/*.real.cy.{ts,tsx}",
+    chromeWebSecurity: false,
     video: false,
   },
   component: {
